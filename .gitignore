@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.vscode
+__pycache__/
+.ipynb_checkpoints/
+.converae
+.cache
+.pytest_cache
+.DS_Store
+SLURM*
+*.sh
+raw
+wandb
