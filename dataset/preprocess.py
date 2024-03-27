@@ -12,8 +12,8 @@ from tqdm import tqdm
 import torch
 from torch_geometric.data import Data
 
-from .generate_negative import NegativeSampling
-from .data_download import download_ctd_data
+from generate_negative import NegativeSampling
+from data_download import download_ctd_data
 
 
 chem_col = 'ChemicalID'
@@ -464,6 +464,138 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     
     return data, save_path
 
+def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
+    print('>>> Processing Gene-Disease Data ...')
+    print('----------------------------------------------------------------------------')
+    
+    gene_dis_tmp = pd.read_csv(f'{file_path}/CTD_genes_diseases.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
+
+    ### delete data which have 'therapeutic' DirectEvidence
+    thera_idx = gene_dis_tmp.DirectEvidence == 'therapeutic'
+    gene_dis = gene_dis_tmp[~thera_idx]
+
+    ### curated (DirectEvidence: marker/mechanism) edge index between gene-disease
+    curated_gene_dis_idx = gene_dis.DirectEvidence == 'marker/mechanism'
+    curated_gene_dis = gene_dis[curated_gene_dis_idx][[gene_col, dis_col]]
+    dir_dup_num = curated_gene_dis.duplicated(keep = False).sum()
+    if dir_dup_num != 0:
+        raise ValueError(f'duplicated direct evidence: {dir_dup_num}')
+    else: 
+        print(f'Number of Duplicated DirectEvidence: {dir_dup_num}')
+    
+    ### inferred edge index between chem-disease
+    # (c, d) pairs which have DirectEvidence and Inferred Relation
+    dup_gene_dis_idx = gene_dis[[gene_col, dis_col]].duplicated(keep = False)
+    dup_gene_dis = gene_dis[dup_gene_dis_idx]
+    dup_dir_gene_dis = dup_gene_dis[~dup_gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
+
+    # (c, d) pairs which have Inferred Relation and drops duplicate
+    inferred_gene_dis_idx = gene_dis.DirectEvidence.isna()
+    inferred_gene_dis = gene_dis[inferred_gene_dis_idx][[gene_col, dis_col]]
+    inferred_gene_dis = inferred_gene_dis.drop_duplicates()
+    # merge dup_dir_gene_dis and drop which duplicated
+    inferred_gene_dis = pd.concat([dup_dir_gene_dis, inferred_gene_dis])
+    inferred_gene_dis = inferred_gene_dis.drop_duplicates(keep = False)
+    
+    ### build graph
+    # mapping of unique chemical, disease, and gene
+    uniq_gene = gene_dis[gene_col].unique()
+    gene_map = {name: i for i, name in enumerate(uniq_gene)}
+
+    uniq_dis = gene_dis[dis_col].unique()
+    dis_map = {name: i for i, name in enumerate(uniq_dis)}
+
+    edge_type_map = {
+        'gene_curated_dis': 0,
+        'gene_inferred_dis': 1
+    }
+
+    # mapping the chemical and disease id
+    curated_gene_dis[gene_col] = curated_gene_dis[gene_col].apply(lambda x: gene_map[x])
+    curated_gene_dis[dis_col] = curated_gene_dis[dis_col].apply(lambda x: dis_map[x])
+
+    inferred_gene_dis[gene_col] = inferred_gene_dis[gene_col].apply(lambda x: gene_map[x])
+    inferred_gene_dis[dis_col] = inferred_gene_dis[dis_col].apply(lambda x: dis_map[x])
+
+    data = Data()
+    data.num_nodes_dict = {
+        'gene': len(gene_map),
+        'disease': len(dis_map)
+    }
+    data.edge_index_dict = {
+        ('gene', 'gene_curated_dis', 'disease'): torch.from_numpy(curated_gene_dis.values.T).to(torch.long),
+        ('gene', 'gene_inferred_dis', 'disease'): torch.from_numpy(inferred_gene_dis.values.T).to(torch.long),
+    }
+    data.edge_reltype = {
+        rel: torch.full((edge.size(1), 1), fill_value = i).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+    }
+    data.num_relations = len(data.edge_index_dict)
+    
+    ### save chemical/disease/rel_type mapping
+    if isdir(save_path):
+        pass
+    else:
+        mkdir(save_path)
+    
+    torch.save(data, f'{save_path}/gd.pt')
+    torch.save(gene_map, f'{save_path}/gene_map')
+    torch.save(dis_map, f'{save_path}/dis_map')
+    torch.save(edge_type_map, f'{save_path}/rel_type_map')
+    
+    print('Gene-Disease graph is successfully constructed.')
+    
+    return data, save_path
+
+def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
+    print('>>> Processing Disease-Pathway Data ...')
+    print('----------------------------------------------------------------------------')
+    
+    # this file does not have duplicated (chem, pathway) pair
+    dis_path_tmp = pd.read_csv(f'{file_path}/CTD_diseases_pathways.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
+    
+    ### build graph
+    uniq_dis = dis_path_tmp[dis_col].unique()
+    dis_map = {name: i for i, name in enumerate(uniq_dis)}
+
+    uniq_path = dis_path_tmp[path_col].unique()
+    path_map = {name: i for i, name in enumerate(uniq_path)}
+
+    edge_type_map = {
+        'disease_related_path': 0
+    }
+
+    # mapping the chemical and disease id
+    dis_path = dis_path_tmp[[dis_col, path_col]]
+    dis_path[dis_col] = dis_path[dis_col].apply(lambda x: dis_map[x])
+    dis_path[path_col] = dis_path[path_col].apply(lambda x: path_map[x])
+
+    data = Data()
+    data.num_nodes_dict = {
+        'disease': len(dis_map),
+        'pathway': len(path_map)
+    }
+    data.edge_index_dict = {
+        ('disease', 'disease_related_path', 'pathway'): torch.from_numpy(dis_path.values.T).to(torch.long),
+    }
+    data.edge_reltype = {
+        rel: torch.full((edge.size(1), 1), fill_value = i).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+    }
+    data.num_relations = len(data.edge_index_dict)
+    
+    ### save mapping
+    if isdir(save_path):
+        pass
+    else:
+        mkdir(save_path)
+
+    torch.save(data, f'{save_path}/dpath.pt')
+    torch.save(dis_map, f'{save_path}/dis_map')
+    torch.save(path_map, f'{save_path}/path_map')
+    torch.save(edge_type_map, f'{save_path}/rel_type_map')
+    
+    print('Disease-Pathway graph is successfully constructed.')
+    
+    return data, save_path
 
 def build_benchmarks(data_type, train_frac, valid_frac):
     print('>>> Build Benchmark Dataset ...')
@@ -479,8 +611,11 @@ def build_benchmarks(data_type, train_frac, valid_frac):
         data, save_path = build_cpath_graph()
     elif data_type == 'gpath':
         data, save_path = build_gpath_graph()
+    elif data_type == 'gd':
+        data, save_path = build_gd_graph()
+    elif data_type == 'dpath':
+        data, save_path = build_dpath_graph()
     # elif data_type == :
-    
     
     ### split data
     train_data, valid_data, test_data = split_data(data, train_frac, valid_frac)
@@ -492,9 +627,9 @@ def build_benchmarks(data_type, train_frac, valid_frac):
     test_data = negative_sampling(test_data)
 
     ### save splitted data
-    torch.save(train_data, f'{save_path}/train_cd.pt')
-    torch.save(valid_data, f'{save_path}/valid_cd.pt')
-    torch.save(test_data, f'{save_path}/test_cd.pt')
+    torch.save(train_data, f'{save_path}/train_{data_type}.pt')
+    torch.save(valid_data, f'{save_path}/valid_{data_type}.pt')
+    torch.save(test_data, f'{save_path}/test_{data_type}.pt')
     
     print('Graph Construction is Completed!')
 
