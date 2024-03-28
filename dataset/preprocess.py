@@ -224,7 +224,7 @@ def build_cg_graph(type, file_path = 'raw', save_path = 'processed/cg'):
             v2: gene entity to multiple gene/mRNA/etc entity
     ----------
     '''
-    print('>>> Processing Chemical-Gene Data ...')
+    print(f'>>> Processing Chemical-Gene Data {type} ...')
     print('----------------------------------------------------------------------------')
     
     chem_gene_tmp = pd.read_csv(f'{file_path}/CTD_chem_gene_ixns.csv.gz', skiprows = list(range(27)) + [28], compression = 'gzip')
@@ -464,7 +464,9 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     
     return data, save_path
 
+
 def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
+    print('This procedure may be time-consuming ...')
     print('>>> Processing Gene-Disease Data ...')
     print('----------------------------------------------------------------------------')
     
@@ -546,6 +548,7 @@ def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
     
     return data, save_path
 
+
 def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
     print('>>> Processing Disease-Pathway Data ...')
     print('----------------------------------------------------------------------------')
@@ -597,6 +600,149 @@ def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
     
     return data, save_path
 
+
+def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
+    print('This procedure may be time-consuming ...')
+    print('>>> Processing Chemical-Gene-Disease Data ...')
+    print('----------------------------------------------------------------------------')
+    
+    chem_dis_tmp = pd.read_csv(f'{file_path}/CTD_chemicals_diseases.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
+    chem_gene_tmp = pd.read_csv(f'{file_path}/CTD_chem_gene_ixns.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
+    gene_dis_tmp = pd.read_csv(f'{file_path}/CTD_genes_diseases.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
+
+    ### delete data which have 'therapeutic' DirectEvidence
+    cd_thera_idx = chem_dis_tmp.DirectEvidence == 'therapeutic'
+    chem_dis = chem_dis_tmp[~cd_thera_idx]
+    del chem_dis_tmp
+    
+    gd_thera_idx = gene_dis_tmp.DirectEvidence == 'therapeutic'
+    gene_dis = gene_dis_tmp[~gd_thera_idx]
+    del gene_dis_tmp
+    
+    # delete data which are not specified the organism
+    org_na_idx = chem_gene_tmp['Organism'].isna()
+    geneform_na_idx = chem_gene_tmp['GeneForms'].isna()
+    chem_gene = chem_gene_tmp[~(org_na_idx|geneform_na_idx)]
+    del chem_gene_tmp
+    
+    ### curated (DirectEvidence: marker/mechanism) edge index
+    # chemical-disease
+    curated_chem_dis = chem_dis[~chem_dis.DirectEvidence.isna()][[chem_col, dis_col]]
+    dir_cd_dup_num = curated_chem_dis.duplicated(keep = False).sum()
+    if dir_cd_dup_num != 0:
+        raise ValueError(f'duplicated direct evidence of chem-dis: {dir_cd_dup_num}')
+    else: 
+        print(f'Number of Duplicated DirectEvidence of Chem-Dis: {dir_cd_dup_num}')
+    
+    # gene-disease
+    curated_gene_dis = gene_dis[~gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
+    dir_gd_dup_num = curated_gene_dis.duplicated(keep = False).sum()
+    if dir_gd_dup_num != 0:
+        raise ValueError(f'duplicated direct evidence of gene-dis: {dir_gd_dup_num}')
+    else: 
+        print(f'Number of Duplicated DirectEvidence of Gene-Dis: {dir_gd_dup_num}')
+    
+    ### inferred edge index
+    # (c, d) pairs which have DirectEvidence and Inferred Relation
+    dup_chem_dis_idx = chem_dis[[chem_col, dis_col]].duplicated(keep = False)
+    dup_chem_dis = chem_dis[dup_chem_dis_idx]
+    dup_dir_chem_dis = dup_chem_dis[~dup_chem_dis.DirectEvidence.isna()][[chem_col, dis_col]]
+    # (c, d) pairs which have Inferred Relation and drops duplicate
+    inferred_chem_dis = chem_dis[chem_dis.DirectEvidence.isna()][[chem_col, dis_col]]
+    inferred_chem_dis = inferred_chem_dis.drop_duplicates()
+    # merge dup_dir_chem_dis and drop which duplicated
+    inferred_chem_dis = pd.concat([dup_dir_chem_dis, inferred_chem_dis])
+    inferred_chem_dis = inferred_chem_dis.drop_duplicates(keep = False)
+    
+    # (g, d) pairs which have DirecEvidence and Inferred Relation
+    dup_gene_dis_idx = gene_dis[[gene_col, dis_col]].duplicated(keep = False)
+    dup_gene_dis = gene_dis[dup_gene_dis_idx]
+    dup_dir_gene_dis = dup_gene_dis[~dup_gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
+    # (g, d) pairs which have Inferred Relation and drops duplicate
+    inferred_gene_dis = gene_dis[gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
+    inferred_gene_dis = inferred_gene_dis.drop_duplicates()
+    # merge dup_dir_chem_dis and drop which duplicated
+    inferred_gene_dis = pd.concat([dup_dir_gene_dis, inferred_gene_dis])
+    inferred_gene_dis = inferred_gene_dis.drop_duplicates(keep = False)
+    
+    # (c, g)
+    inferred_chem_gene = chem_gene[[chem_col, gene_col]].drop_duplicates()
+    
+    ### build graph
+    # mapping of unique chemical, disease, and gene
+    uniq_chem = pd.concat([chem_dis[chem_col], chem_gene[chem_col]]).unique()
+    chem_map = {name: i for i, name in enumerate(uniq_chem)}
+
+    uniq_dis = pd.concat([chem_dis[dis_col], gene_dis[dis_col]]).unique()
+    dis_map = {name: i for i, name in enumerate(uniq_dis)}
+    
+    uniq_gene = pd.concat([chem_gene[gene_col], gene_dis[gene_col]]).unique()
+    gene_map = {name: i for i, name in enumerate(uniq_gene)}
+
+    del chem_dis
+    del chem_gene
+    del gene_dis
+
+    edge_type_map = {
+        'chem_curated_dis': 0,
+        'chem_inferred_dis': 1,
+        'gene_curated_dis': 2,
+        'gene_inferred_dis': 3,
+        'chem_inferred_gene': 4
+    }
+
+    # mapping the chemical and disease id
+    curated_chem_dis[chem_col] = curated_chem_dis[chem_col].apply(lambda x: chem_map[x])
+    curated_chem_dis[dis_col] = curated_chem_dis[dis_col].apply(lambda x: dis_map[x])
+
+    inferred_chem_dis[chem_col] = inferred_chem_dis[chem_col].apply(lambda x: chem_map[x])
+    inferred_chem_dis[dis_col] = inferred_chem_dis[dis_col].apply(lambda x: dis_map[x])
+    
+    curated_gene_dis[gene_col] = curated_gene_dis[gene_col].apply(lambda x: gene_map[x])
+    curated_gene_dis[dis_col] = curated_gene_dis[dis_col].apply(lambda x: dis_map[x])
+
+    inferred_gene_dis[gene_col] = inferred_gene_dis[gene_col].apply(lambda x: gene_map[x])
+    inferred_gene_dis[dis_col] = inferred_gene_dis[dis_col].apply(lambda x: dis_map[x])
+
+    inferred_chem_gene[chem_col] = inferred_chem_gene[chem_col].apply(lambda x: chem_map[x])
+    inferred_chem_gene[gene_col] = inferred_chem_gene[gene_col].apply(lambda x: gene_map[x])
+    
+
+    data = Data()
+    data.num_nodes_dict = {
+        'chemical': len(chem_map),
+        'gene': len(gene_map),
+        'disease': len(dis_map)
+    }
+    data.edge_index_dict = {
+        ('chemical', 'chem_curated_dis', 'disease'): torch.from_numpy(curated_chem_dis.values.T).to(torch.long),
+        ('chemical', 'chem_inferred_dis', 'disease'): torch.from_numpy(inferred_chem_dis.values.T).to(torch.long),
+        ('gene', 'gene_curated_dis', 'disease'): torch.from_numpy(curated_gene_dis.values.T).to(torch.long),
+        ('gene', 'gene_inferred_dis', 'disease'): torch.from_numpy(inferred_gene_dis.values.T).to(torch.long),
+        ('chem', 'chem_inferred_gene', 'gene'): torch.from_numpy(inferred_chem_gene.values.T).to(torch.long),
+    }
+    data.edge_reltype = {
+        rel: torch.full((edge.size(1), 1), fill_value = i).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+    }
+    data.num_relations = len(data.edge_index_dict)
+    
+    ### save chemical/disease/rel_type mapping
+    if isdir(save_path):
+        pass
+    else:
+        mkdir(save_path)
+    
+    torch.save(data, f'{save_path}/cgd.pt')
+    torch.save(chem_map, f'{save_path}/chem_map')
+    torch.save(gene_map, f'{save_path}/gene_map')
+    torch.save(dis_map, f'{save_path}/dis_map')
+    torch.save(edge_type_map, f'{save_path}/rel_type_map')
+    
+    print('Chemical-Gene-Disease graph is successfully constructed.')
+    
+    return data, save_path
+
+
 def build_benchmarks(data_type, train_frac, valid_frac):
     print('>>> Build Benchmark Dataset ...')
     
@@ -639,5 +785,6 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 # build_benchmarks('cg-v2', 0.9, 0.05)
 # build_benchmarks('cpath', 0.9, 0.05)
 # build_benchmarks('gpath', 0.9, 0.05)
+# build_benchmarks('cgd', 0.98, 0.01)
 
 
