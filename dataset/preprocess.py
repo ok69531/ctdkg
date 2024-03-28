@@ -761,6 +761,8 @@ def build_benchmarks(data_type, train_frac, valid_frac):
         data, save_path = build_gd_graph()
     elif data_type == 'dpath':
         data, save_path = build_dpath_graph()
+    elif data_type == 'cgd':
+        data, save_path = build_cgd_graph()
     # elif data_type == :
     
     ### split data
