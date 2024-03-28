@@ -22,10 +22,10 @@ class NegativeSampling(Dataset):
         
         if self.mode == 'head-batch':
             negative_sample = torch.randint(0, self.entity_dict[head_type], (self.negative_sample_size+100,))
-            negative_sample = torch.stack([i for i in negative_sample if i not in set(self.true_head[(relation, tail)])])[:self.negative_sample_size]
+            negative_sample = torch.stack([i for i in negative_sample if i.item() not in set(self.true_head[(relation, tail)])])[:self.negative_sample_size]
         elif self.mode == 'tail-batch':
             negative_sample = torch.randint(0, self.entity_dict[tail_type], (self.negative_sample_size+100,))
-            negative_sample = torch.stack([i for i in negative_sample if i not in set(self.true_tail[(head, relation)])])[:self.negative_sample_size]
+            negative_sample = torch.stack([i for i in negative_sample if i.item() not in set(self.true_tail[(head, relation)])])[:self.negative_sample_size]
         else:
             raise
         positive_sample = torch.LongTensor(positive_sample)
