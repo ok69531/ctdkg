@@ -475,7 +475,7 @@ def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
     gene_dis = gene_dis_tmp[~thera_idx]
 
     ### curated (DirectEvidence: marker/mechanism) edge index between gene-disease
-    curated_gene_dis_idx = gene_dis.DirectEvidence == 'marker/mechanism'
+    curated_gene_dis_idx = (gene_dis.DirectEvidence == 'marker/mechanism')|(gene_dis.DirectEvidence == 'marker/mechanism|therapeutic')
     curated_gene_dis = gene_dis[curated_gene_dis_idx][[gene_col, dis_col]]
     dir_dup_num = curated_gene_dis.duplicated(keep = False).sum()
     if dir_dup_num != 0:
