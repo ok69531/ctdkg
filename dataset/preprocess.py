@@ -722,7 +722,7 @@ def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
         ('chemical', 'chem_inferred_gene', 'gene'): torch.from_numpy(inferred_chem_gene.values.T).to(torch.long),
     }
     data.edge_reltype = {
-        r: torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
+        (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
     data.num_relations = len(data.edge_index_dict)
     
