@@ -81,7 +81,7 @@ def split_data(data, train_frac, valid_frac):
     return train_data, valid_data, test_data
 
 
-def negative_sampling(data):
+def negative_sampling(data, all_true_head, all_true_tail, num_negative = 500):
     torch.manual_seed(42)
     
     head_type = []
@@ -105,19 +105,19 @@ def negative_sampling(data):
         'tail': torch.cat(tail)
     }
 
-    true_head, true_tail = defaultdict(list), defaultdict(list)
-    for i in tqdm(range(len(triples['head']))):
-        head, relation, tail = triples['head'][i].item(), triples['relation'][i].item(), triples['tail'][i].item()
-        head_type, tail_type = triples['head_type'][i], triples['tail_type'][i]
-        true_head[(relation, tail)].append(head)
-        true_tail[(head, relation)].append(tail)
+    # true_head, true_tail = defaultdict(list), defaultdict(list)
+    # for i in tqdm(range(len(triples['head']))):
+    #     head, relation, tail = triples['head'][i].item(), triples['relation'][i].item(), triples['tail'][i].item()
+    #     head_type, tail_type = triples['head_type'][i], triples['tail_type'][i]
+        # true_head[(relation, tail)].append(head)
+        # true_tail[(head, relation)].append(tail)
 
-    head_negative_sampling = NegativeSampling(triples, 500, 'head-batch', true_head, true_tail, data.num_nodes_dict)
+    head_negative_sampling = NegativeSampling(triples, num_negative, 'head-batch', all_true_head, all_true_tail, data.num_nodes_dict)
     head_negative = []
     for i in tqdm(range(len(triples['head']))):
         head_negative.append(head_negative_sampling.__getitem__(i)[1])
 
-    tail_negative_sampling = NegativeSampling(triples, 500, 'tail-batch', true_head, true_tail, data.num_nodes_dict)
+    tail_negative_sampling = NegativeSampling(triples, num_negative, 'tail-batch', all_true_head, all_true_tail, data.num_nodes_dict)
     tail_negative = []
     for i in tqdm(range(len(triples['tail']))):
         tail_negative.append(tail_negative_sampling.__getitem__(i)[1])
@@ -769,10 +769,38 @@ def build_benchmarks(data_type, train_frac, valid_frac):
     train_data, valid_data, test_data = split_data(data, train_frac, valid_frac)
     
     ### negative sampling
+    print('Build all true triplets')
+    head_type = []
+    tail_type = []
+    relation = []
+    head = []
+    tail = []
+    
+    for (h, r, t), e in data.edge_index_dict.items():
+        head_type.append(list(repeat(h, e.shape[1])))
+        tail_type.append(list(repeat(t, e.shape[1])))
+        relation.append(data.edge_reltype[(h, r, t)].view(-1))
+        head.append(e[0])
+        tail.append(e[1])
+
+    triples = {
+        'head_type': list(itertools.chain(*head_type)),
+        'head': torch.cat(head),
+        'relation': torch.cat(relation),
+        'tail_type': list(itertools.chain(*tail_type)),
+        'tail': torch.cat(tail)
+    }
+
+    all_true_head, all_true_tail = defaultdict(list), defaultdict(list)
+    for i in tqdm(range(len(triples['head']))):
+        head, relation, tail = triples['head'][i].item(), triples['relation'][i].item(), triples['tail'][i].item()
+        all_true_head[(relation, tail)].append(head)
+        all_true_tail[(head, relation)].append(tail)
+    
     print('Negative Sampling for Validation Data')
-    valid_data = negative_sampling(valid_data)
+    valid_data = negative_sampling(valid_data, all_true_head, all_true_tail)
     print('Negative Sampling for Test Data')
-    test_data = negative_sampling(test_data)
+    test_data = negative_sampling(test_data, all_true_head, all_true_tail)
 
     ### save splitted data
     torch.save(train_data, f'{save_path}/train_{data_type}.pt')
