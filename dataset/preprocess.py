@@ -146,9 +146,9 @@ def build_cd_graph(file_path = 'raw', save_path = 'processed/cd'):
     curated_chem_dis = chem_dis[curated_chem_dis_idx][[chem_col, dis_col]]
     dir_dup_num = curated_chem_dis.duplicated(keep = False).sum()
     if dir_dup_num != 0:
-        raise ValueError(f'duplicated direct evidence: {dir_dup_num}')
+        raise ValueError(f'Duplicated direct evidence: {dir_dup_num}')
     else: 
-        print(f'Number of Duplicated DirectEvidence: {dir_dup_num}')
+        print(f'Number of duplicated DirectEvidence: {dir_dup_num}')
     
     ### inferred edge index between chem-disease
     # (c, d) pairs which have DirectEvidence and Inferred Relation
@@ -481,9 +481,9 @@ def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
     curated_gene_dis = gene_dis[curated_gene_dis_idx][[gene_col, dis_col]]
     dir_dup_num = curated_gene_dis.duplicated(keep = False).sum()
     if dir_dup_num != 0:
-        raise ValueError(f'duplicated direct evidence: {dir_dup_num}')
+        raise ValueError(f'Duplicated direct evidence: {dir_dup_num}')
     else: 
-        print(f'Number of Duplicated DirectEvidence: {dir_dup_num}')
+        print(f'Number of duplicated DirectEvidence: {dir_dup_num}')
     
     ### inferred edge index between chem-disease
     # (c, d) pairs which have DirectEvidence and Inferred Relation
@@ -630,17 +630,17 @@ def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
     curated_chem_dis = chem_dis[~chem_dis.DirectEvidence.isna()][[chem_col, dis_col]]
     dir_cd_dup_num = curated_chem_dis.duplicated(keep = False).sum()
     if dir_cd_dup_num != 0:
-        raise ValueError(f'duplicated direct evidence of chem-dis: {dir_cd_dup_num}')
+        raise ValueError(f'Duplicated direct evidence of chem-dis: {dir_cd_dup_num}')
     else: 
-        print(f'Number of Duplicated DirectEvidence of Chem-Dis: {dir_cd_dup_num}')
+        print(f'Number of duplicated DirectEvidence of chem-dis: {dir_cd_dup_num}')
     
     # gene-disease
     curated_gene_dis = gene_dis[~gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
     dir_gd_dup_num = curated_gene_dis.duplicated(keep = False).sum()
     if dir_gd_dup_num != 0:
-        raise ValueError(f'duplicated direct evidence of gene-dis: {dir_gd_dup_num}')
+        raise ValueError(f'Duplicated direct evidence of gene-dis: {dir_gd_dup_num}')
     else: 
-        print(f'Number of Duplicated DirectEvidence of Gene-Dis: {dir_gd_dup_num}')
+        print(f'Number of duplicated DirectEvidence of gene-dis: {dir_gd_dup_num}')
     
     ### inferred edge index
     # (c, d) pairs which have DirectEvidence and Inferred Relation
@@ -797,9 +797,9 @@ def build_benchmarks(data_type, train_frac, valid_frac):
         all_true_head[(relation, tail)].append(head)
         all_true_tail[(head, relation)].append(tail)
     
-    print('Negative Sampling for Validation Data')
+    print('Negative sampling for validation data')
     valid_data = negative_sampling(valid_data, all_true_head, all_true_tail)
-    print('Negative Sampling for Test Data')
+    print('Negative sampling for test data')
     test_data = negative_sampling(test_data, all_true_head, all_true_tail)
 
     ### save splitted data
@@ -807,7 +807,7 @@ def build_benchmarks(data_type, train_frac, valid_frac):
     torch.save(valid_data, f'{save_path}/valid_{data_type}.pt')
     torch.save(test_data, f'{save_path}/test_{data_type}.pt')
     
-    print('Graph Construction is Completed!')
+    print('Graph construction is completed!')
 
 
 # build_benchmarks('cd', 0.9, 0.05)
@@ -816,5 +816,3 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 # build_benchmarks('cpath', 0.9, 0.05)
 # build_benchmarks('gpath', 0.9, 0.05)
 # build_benchmarks('cgd', 0.98, 0.01)
-
-
