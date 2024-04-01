@@ -1,4 +1,4 @@
-from os import mkdir
+from os import makedirs
 from os.path import isdir, isfile
 
 import random
@@ -202,7 +202,7 @@ def build_cd_graph(file_path = 'raw', save_path = 'processed/cd'):
     if isdir(save_path):
         pass
     else:
-        mkdir(save_path)
+        makedirs(save_path)
     
     torch.save(data, f'{save_path}/cd.pt')
     torch.save(chem_map, f'{save_path}/chem_map')
@@ -271,11 +271,11 @@ def build_cg_graph(type, file_path = 'raw', save_path = 'processed/cg'):
         if isdir(save_path):
             pass
         else:
-            mkdir(save_path)
+            makedirs(save_path)
         
         torch.save(data, f'{save_path}/cg.pt')
         torch.save(chem_map, f'{save_path}/chem_map')
-        torch.save(gene_map, f'{save_path}/dis_map')
+        torch.save(gene_map, f'{save_path}/gene_map')
         torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     elif type == 'v2':
@@ -349,11 +349,11 @@ def build_cg_graph(type, file_path = 'raw', save_path = 'processed/cg'):
         if isdir(save_path):
             pass
         else:
-            mkdir(save_path)
+            makedirs(save_path)
         
         torch.save(data, f'{save_path}/cg.pt')
         torch.save(chem_map, f'{save_path}/chem_map')
-        torch.save(gene_map, f'{save_path}/dis_map')
+        torch.save(gene_map, f'{save_path}/gene_map')
         torch.save(edge_type_map, f'{save_path}/rel_type_map')
 
     print('Chemical-Gene Graph is successfully constructed.')
@@ -401,7 +401,7 @@ def build_cpath_graph(file_path = 'raw', save_path = 'processed/cpath'):
     if isdir(save_path):
         pass
     else:
-        mkdir(save_path)
+        makedirs(save_path)
     
     torch.save(data, f'{save_path}/cpath.pt')
     torch.save(chem_map, f'{save_path}/chem_map')
@@ -453,7 +453,7 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     if isdir(save_path):
         pass
     else:
-        mkdir(save_path)
+        makedirs(save_path)
     
     torch.save(data, f'{save_path}/cpath.pt')
     torch.save(gene_map, f'{save_path}/gene_map')
@@ -537,7 +537,7 @@ def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
     if isdir(save_path):
         pass
     else:
-        mkdir(save_path)
+        makedirs(save_path)
     
     torch.save(data, f'{save_path}/gd.pt')
     torch.save(gene_map, f'{save_path}/gene_map')
@@ -589,7 +589,7 @@ def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
     if isdir(save_path):
         pass
     else:
-        mkdir(save_path)
+        makedirs(save_path)
 
     torch.save(data, f'{save_path}/dpath.pt')
     torch.save(dis_map, f'{save_path}/dis_map')
@@ -730,7 +730,7 @@ def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
     if isdir(save_path):
         pass
     else:
-        mkdir(save_path)
+        makedirs(save_path)
     
     torch.save(data, f'{save_path}/cgd.pt')
     torch.save(chem_map, f'{save_path}/chem_map')
