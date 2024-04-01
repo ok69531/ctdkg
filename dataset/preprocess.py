@@ -455,7 +455,7 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     else:
         makedirs(save_path)
     
-    torch.save(data, f'{save_path}/cpath.pt')
+    torch.save(data, f'{save_path}/gpath.pt')
     torch.save(gene_map, f'{save_path}/gene_map')
     torch.save(path_map, f'{save_path}/path_map')
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
