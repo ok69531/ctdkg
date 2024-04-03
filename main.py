@@ -89,10 +89,9 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
         if i % 1000 == 0:
             logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
             logging.info(log)
-            # print('Training the model... (%d/%d)' % (i, int(len(head_loader))))
-            # print(log)
      
-    scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+    scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
+    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     
     return epoch_logs
 
