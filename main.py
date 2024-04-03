@@ -296,7 +296,7 @@ def main():
             #     'Train loss': train_losses['loss']
             # })
             
-            if epoch % 10:
+            if epoch % 10 == 0:
                 valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
                 valid_metrics = {}
                 for metric in valid_logs:
