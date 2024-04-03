@@ -1,5 +1,6 @@
 import os
 import wandb
+import logging
 
 from collections import defaultdict
 
@@ -21,6 +22,7 @@ except:
     args = parse_args([])
 
 
+logging.basicConfig(format='', level=logging.INFO)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # wandb.login(key = open('wandb_key.txt', 'r').readline())
@@ -84,9 +86,11 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
             
             epoch_logs.append(log)
         
-        if i % 100 == 0:
-            print('Training the model... (%d/%d)' % (i, int(len(head_loader))))
-            print(log)
+        if i % 1000 == 0:
+            logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+            logging.info(log)
+            # print('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+            # print(log)
      
     scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     
@@ -131,7 +135,7 @@ def evaluate(model, head_loader, tail_loader, args):
                 test_logs[metric].append(batch_results[metric])
 
         if i % args.test_log_steps == 0:
-            print('Evaluating the model... (%d/%d)' % (i, int(len(head_loader))))
+            logging.info('Evaluating the model... (%d/%d)' % (i, int(len(head_loader))))
 
     return test_logs
 
@@ -274,12 +278,14 @@ def main():
 
         
         for epoch in range(1, args.num_epoch + 1):
+            print(f"=== Epoch: {epoch}")
+            
             train_out = train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
             
             train_losses = {}
             for l in train_out[0].keys():
                 train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
-                print(f'Traain {l} at epoch {epoch}: {train_losses[l]}')
+                print(f'Train {l} at epoch {epoch}: {train_losses[l]}')
             
             print(f"Train positive sample loss: {train_losses['positive_sample_loss']:.5f}")
             print(f"Train negative sample loss: {train_losses['negative_sample_loss']:.5f}")
@@ -297,7 +303,7 @@ def main():
                 for metric in valid_logs:
                     valid_metrics[metric[:-5]] = torch.cat(valid_logs[metric]).mean().item()       
 
-                print(f"=== Epoch: {epoch}")
+                
                 print(f"Valid MRR: {valid_metrics['mrr']:.5f}")
                 print(f"Valid hits@1: {valid_metrics['hits@1']:.5f}")
                 print(f"Valid hits@3': {valid_metrics['hits@3']:.5f}")
@@ -308,7 +314,7 @@ def main():
                 for metric in test_logs:
                     test_metrics[metric[:-5]] = torch.cat(test_logs[metric]).mean().item()       
                 
-                print(f"Test MRR': {test_metrics['mrr']:.5f}")
+                print(f"Test MRR: {test_metrics['mrr']:.5f}")
                 print(f"Test hits@1': {test_metrics['hits@1']:.5f}")
                 print(f"Test hits@3': {test_metrics['hits@3']:.5f}")
                 print(f"Test hits@10': {test_metrics['hits@10']:.5f}")
