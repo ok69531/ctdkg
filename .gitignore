@@ -13,3 +13,4 @@ SLURM*
 *.sh
 raw
 wandb
+wandb_key.txt
