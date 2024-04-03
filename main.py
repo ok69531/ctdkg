@@ -284,11 +284,8 @@ def main():
             train_losses = {}
             for l in train_out[0].keys():
                 train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
-                print(f'Train {l} at epoch {epoch}: {train_losses[l]}')
-            
-            print(f"Train positive sample loss: {train_losses['positive_sample_loss']:.5f}")
-            print(f"Train negative sample loss: {train_losses['negative_sample_loss']:.5f}")
-            print(f"Train loss: {train_losses['loss']:.5f}")
+                print(f'Train {l}: {train_losses[l]:.5f}')
+                print('----------')
             
             # wandb.log({
             #     'Train positive sample loss': train_losses['positive_sample_loss'],
@@ -307,6 +304,7 @@ def main():
                 print(f"Valid hits@1: {valid_metrics['hits@1']:.5f}")
                 print(f"Valid hits@3': {valid_metrics['hits@3']:.5f}")
                 print(f"Valid hits@10': {valid_metrics['hits@10']:.5f}")
+                print('----------')
                 
                 test_logs = evaluate(model, test_dataloader_head, test_dataloader_tail, args)
                 test_metrics = {}
