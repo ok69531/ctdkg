@@ -20,6 +20,7 @@ chem_col = 'ChemicalID'
 dis_col = 'DiseaseID'
 gene_col = 'GeneID'
 path_col = 'PathwayID'
+pheno_col = 'GOID'
 
 
 def split_data(data, train_frac, valid_frac):
@@ -742,6 +743,77 @@ def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
     
     return data, save_path
 
+def build_phenod_graph(file_path = 'raw', save_path = 'processed/phenod'):
+    print('>>> Processing Phenotype-Disease Data ...')
+    print('----------------------------------------------------------------------------')
+    biological_pheno_dis_tmp = pd.read_csv(
+        f'{file_path}/CTD_Phenotype-Disease_biological_process_associations.csv.gz',
+        skiprows = list(range(27))+[28], compression = 'gzip')
+    cellular_pheno_dis_tmp = pd.read_csv(
+        f'{file_path}/CTD_Phenotype-Disease_cellular_component_associations.csv.gz',
+        skiprows = list(range(27))+[28], compression = 'gzip')
+    molecular_pheno_dis_tmp = pd.read_csv(
+        f'{file_path}/CTD_Phenotype-Disease_molecular_function_associations.csv.gz',
+        skiprows = list(range(27))+[28], compression = 'gzip')
+
+    biological_pheno_dis = biological_pheno_dis_tmp[[pheno_col, dis_col]]
+    cellular_pheno_dis = cellular_pheno_dis_tmp[[pheno_col, dis_col]]
+    molecular_pheno_dis = molecular_pheno_dis_tmp[[pheno_col, dis_col]]
+
+    # there are not have duplicated (phenotype, disease) pair
+    all_pheno_dis = pd.concat([biological_pheno_dis, cellular_pheno_dis, molecular_pheno_dis])
+
+    ### build graph
+    uniq_pheno = all_pheno_dis[pheno_col].unique()
+    pheno_map = {name: i for i, name in enumerate(uniq_pheno)}
+
+    uniq_dis = all_pheno_dis[dis_col].unique()
+    dis_map = {name: i for i, name in enumerate(uniq_dis)}
+
+    edge_type_map = {
+        'pheno_biological_dis': 0,
+        'pheno_cellular_dis': 1,
+        'pheno_molecular_dis': 2,
+    }
+
+    # mapping the phenotype and disease id
+    biological_pheno_dis[pheno_col] = biological_pheno_dis[pheno_col].apply(lambda x: pheno_map[x])
+    biological_pheno_dis[dis_col] = biological_pheno_dis[dis_col].apply(lambda x: dis_map[x])
+
+    cellular_pheno_dis[pheno_col] = cellular_pheno_dis[pheno_col].apply(lambda x: pheno_map[x])
+    cellular_pheno_dis[dis_col] = cellular_pheno_dis[dis_col].apply(lambda x: dis_map[x])
+
+    molecular_pheno_dis[pheno_col] = molecular_pheno_dis[pheno_col].apply(lambda x: pheno_map[x])
+    molecular_pheno_dis[dis_col] = molecular_pheno_dis[dis_col].apply(lambda x: dis_map[x])
+
+    data = Data()
+    data.num_nodes_dict = {
+        'phenotype': len(pheno_map),
+        'disease': len(dis_map)
+    }
+    data.edge_index_dict = {
+        ('phenotype', 'pheno_biological_dis', 'disease'): torch.from_numpy(biological_pheno_dis.values.T).to(torch.long),
+        ('phenotype', 'pheno_cellular_dis', 'disease'): torch.from_numpy(cellular_pheno_dis.values.T).to(torch.long),
+        ('phenotype', 'pheno_molecular_dis', 'disease'): torch.from_numpy(molecular_pheno_dis.values.T).to(torch.long),
+    }
+    data.edge_reltype = {
+        (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
+    }
+    data.num_relations = len(data.edge_index_dict)
+
+    ### save chemical/disease/rel_type mapping
+    if isdir(save_path):
+        pass
+    else:
+        makedirs(save_path)
+
+    torch.save(data, f'{save_path}/phenod.pt')
+    torch.save(pheno_map, f'{save_path}/pheno_map')
+    torch.save(dis_map, f'{save_path}/dis_map')
+    torch.save(edge_type_map, f'{save_path}/rel_type_map')
+
+    print('Phenotype-Disease graph is successfully constructed.')
+    return data, save_path
 
 def build_benchmarks(data_type, train_frac, valid_frac):
     print('>>> Build Benchmark Dataset ...')
@@ -763,6 +835,8 @@ def build_benchmarks(data_type, train_frac, valid_frac):
         data, save_path = build_dpath_graph()
     elif data_type == 'cgd':
         data, save_path = build_cgd_graph()
+    elif data_type == 'phenod':
+        data, save_path = build_phenod_graph()
     # elif data_type == :
     
     ### split data
@@ -816,3 +890,4 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 # build_benchmarks('cpath', 0.9, 0.05)
 # build_benchmarks('gpath', 0.9, 0.05)
 # build_benchmarks('cgd', 0.98, 0.01)
+build_benchmarks('phenod', 0.9, 0.05)
