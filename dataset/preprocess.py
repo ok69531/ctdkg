@@ -743,7 +743,7 @@ def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
     
     return data, save_path
 
-def build_phenod_graph(file_path = 'raw', save_path = 'processed/phenod'):
+def build_phenod_graph(file_path = '../raw', save_path = 'processed/phenod'):
     print('>>> Processing Phenotype-Disease Data ...')
     print('----------------------------------------------------------------------------')
     biological_pheno_dis_tmp = pd.read_csv(
@@ -772,8 +772,11 @@ def build_phenod_graph(file_path = 'raw', save_path = 'processed/phenod'):
 
     edge_type_map = {
         'pheno_biological_dis': 0,
-        'pheno_cellular_dis': 1,
-        'pheno_molecular_dis': 2,
+        'dis_biological_pheno': 1,
+        'pheno_cellular_dis': 2,
+        'dis_cellular_pheno': 3,
+        'pheno_molecular_dis': 4,
+        'dis_molecular_pheno': 5
     }
 
     # mapping the phenotype and disease id
@@ -793,8 +796,11 @@ def build_phenod_graph(file_path = 'raw', save_path = 'processed/phenod'):
     }
     data.edge_index_dict = {
         ('phenotype', 'pheno_biological_dis', 'disease'): torch.from_numpy(biological_pheno_dis.values.T).to(torch.long),
+        ('disease', 'dis_biological_pheno', 'phenotype'): torch.from_numpy(biological_pheno_dis.values.T[[1,0]]).to(torch.long),
         ('phenotype', 'pheno_cellular_dis', 'disease'): torch.from_numpy(cellular_pheno_dis.values.T).to(torch.long),
+        ('disease', 'dis_cellular_pheno', 'phenotype'): torch.from_numpy(cellular_pheno_dis.values.T[[1,0]]).to(torch.long),
         ('phenotype', 'pheno_molecular_dis', 'disease'): torch.from_numpy(molecular_pheno_dis.values.T).to(torch.long),
+        ('disease', 'dis_molecular_pheno', 'phenotype'): torch.from_numpy(molecular_pheno_dis.values.T[[1,0]]).to(torch.long),
     }
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
