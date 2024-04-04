@@ -743,7 +743,7 @@ def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
     
     return data, save_path
 
-def build_phenod_graph(file_path = '../raw', save_path = 'processed/phenod'):
+def build_phenod_graph(file_path = 'raw', save_path = 'processed/phenod'):
     print('>>> Processing Phenotype-Disease Data ...')
     print('----------------------------------------------------------------------------')
     biological_pheno_dis_tmp = pd.read_csv(

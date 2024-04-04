@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class KGEModel(nn.Module):
     def __init__(self, model_name, nentity, nrelation, hidden_dim, gamma,
-                 double_entity_embedding=False, double_relation_embedding=False):
+                 double_entity_embedding=False, num_relation_embedding=1):
         super(KGEModel, self).__init__()
         self.model_name = model_name
         self.nentity = nentity
@@ -26,7 +26,7 @@ class KGEModel(nn.Module):
         self.modulus_weight = nn.Parameter(torch.Tensor([[1.0]]))
         
         self.entity_dim = hidden_dim*2 if double_entity_embedding else hidden_dim
-        self.relation_dim = hidden_dim*2 if double_relation_embedding else hidden_dim
+        self.relation_dim = hidden_dim*num_relation_embedding
         
         self.entity_embedding = nn.Parameter(torch.zeros(nentity, self.entity_dim))
         nn.init.uniform_(
@@ -46,12 +46,14 @@ class KGEModel(nn.Module):
         if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE']:
             raise ValueError('model %s not supported' % model_name)
             
-        if model_name == 'RotatE' and (not double_entity_embedding or double_relation_embedding):
+        if model_name == 'RotatE' and (not double_entity_embedding or num_relation_embedding != 1):
             raise ValueError('RotatE should use --double_entity_embedding')
 
-        if model_name in ['ComplEx', 'HAKE'] and (not double_entity_embedding or not double_relation_embedding):
-            raise ValueError('ComplEx should use --double_entity_embedding and --double_relation_embedding')
-
+        if model_name == 'ComplEx' and (not double_entity_embedding or num_relation_embedding != 2):
+            raise ValueError('ComplEx should use --double_entity_embedding and --num_relation_embedding 2')
+        
+        if model_name == 'HAKE' and (not double_entity_embedding or num_relation_embedding != 3):
+            raise ValueError('ComplEx should use --double_entity_embedding and --num_relation_embedding 3')
 
     def forward(self, sample, mode='single'):
         '''
@@ -216,11 +218,11 @@ class KGEModel(nn.Module):
         score = self.gamma.item() - score.sum(dim = 2)
         return score
     
-    def HAKE(self, head, rel, tail, mode):
+    def HAKE(self, head, relation, tail, mode):
         pi = 3.14159265358979323846
         
         phase_head, mod_head = torch.chunk(head, 2, dim=2)
-        phase_relation, mod_relation, bias_relation = torch.chunk(rel, 3, dim=2)
+        phase_relation, mod_relation, bias_relation = torch.chunk(relation, 3, dim=2)
         phase_tail, mod_tail = torch.chunk(tail, 2, dim=2)
 
         phase_head = phase_head / (self.embedding_range.item() / pi)
