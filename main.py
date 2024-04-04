@@ -332,8 +332,8 @@ def main():
                         'optimizer_state_dict': optimizer.state_dict(),
                         'scheduler_dict': scheduler.state_dict()}
         
-        file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{seed}.json'
-        torch.save(check_points, save_path + file_name)
+        file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{seed}.pt'
+        torch.save(check_points, f'{save_path}/{file_name}')
 
 
 if __name__ == '__main__':
