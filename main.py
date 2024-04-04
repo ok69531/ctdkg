@@ -287,7 +287,6 @@ def main():
             for l in train_out[0].keys():
                 train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
                 print(f'Train {l}: {train_losses[l]:.5f}')
-                print('----------')
             
             # wandb.log({
             #     'Train positive sample loss': train_losses['positive_sample_loss'],
@@ -302,17 +301,18 @@ def main():
                     valid_metrics[metric[:-5]] = torch.cat(valid_logs[metric]).mean().item()       
 
                 
+                print('----------')
                 print(f"Valid MRR: {valid_metrics['mrr']:.5f}")
                 print(f"Valid hits@1: {valid_metrics['hits@1']:.5f}")
                 print(f"Valid hits@3': {valid_metrics['hits@3']:.5f}")
                 print(f"Valid hits@10': {valid_metrics['hits@10']:.5f}")
-                print('----------')
                 
                 test_logs = evaluate(model, test_dataloader_head, test_dataloader_tail, args)
                 test_metrics = {}
                 for metric in test_logs:
                     test_metrics[metric[:-5]] = torch.cat(test_logs[metric]).mean().item()       
                 
+                print('----------')
                 print(f"Test MRR: {test_metrics['mrr']:.5f}")
                 print(f"Test hits@1': {test_metrics['hits@1']:.5f}")
                 print(f"Test hits@3': {test_metrics['hits@3']:.5f}")
