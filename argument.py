@@ -7,7 +7,7 @@ def parse_args(args=None):
         usage='train.py [<args>] [-h | --help]'
     )
 
-    parser.add_argument('--cuda', action='store_true', help='use GPU')
+    # parser.add_argument('--cuda', action='store_true', help='use GPU')
     
     # parser.add_argument('--do_train', action='store_true')
     # parser.add_argument('--do_valid', action='store_true')

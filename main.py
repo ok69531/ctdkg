@@ -25,6 +25,7 @@ except:
 
 logging.basicConfig(format='', level=logging.INFO)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f'cuda is available: {torch.cuda.is_available()}')
 
 # wandb.login(key = open('wandb_key.txt', 'r').readline())
 # wandb.init(project = f'ctdkg', entity = 'soyoung')
