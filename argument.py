@@ -15,7 +15,7 @@ def parse_args(args=None):
     # parser.add_argument('--evaluate_train', action='store_true', help='Evaluate on training data')
     
     parser.add_argument('--dataset', type=str, default='cd', help='dataset name, default to cd')
-    parser.add_argument('--model', default='TransE', type=str)
+    parser.add_argument('--model', default='TransE', type=str, help='TransE, RotatE, DistMult, ComplEx, rgcn')
     parser.add_argument('-de', '--double_entity_embedding', action='store_true')
     parser.add_argument('-dr', '--double_relation_embedding', action='store_true')
     
@@ -31,7 +31,7 @@ def parse_args(args=None):
                         help='Otherwise use subsampling weighting like in word2vec')
     
     parser.add_argument('--num_runs', default = 10, type = int)
-    parser.add_argument('-lr', '--learning_rate', default=0.0001, type=float)
+    parser.add_argument('-lr', '--learning_rate', default=0.00005, type=float)
     parser.add_argument('-nw', '--num_workers', default=1, type = int)
     parser.add_argument('-init', '--init_checkpoint', default=None, type=str)
     parser.add_argument('--num_epoch', default = 100, type = int)
