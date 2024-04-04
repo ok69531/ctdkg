@@ -5,7 +5,7 @@ from torch_geometric.nn import RGCNConv
 
 class KGEModel(nn.Module):
     def __init__(self, model_name, nentity, nrelation, hidden_dim, gamma,
-                 double_entity_embedding=False, double_relation_embedding=False):
+                 double_entity_embedding=False, num_relation_embedding=1):
         super(KGEModel, self).__init__()
         self.model_name = model_name
         self.nentity = nentity
@@ -23,8 +23,11 @@ class KGEModel(nn.Module):
             requires_grad=False
         )
         
+        self.phase_weight = nn.Parameter(torch.Tensor([[0.5 * self.embedding_range.item()]]))
+        self.modulus_weight = nn.Parameter(torch.Tensor([[1.0]]))
+        
         self.entity_dim = hidden_dim*2 if double_entity_embedding else hidden_dim
-        self.relation_dim = hidden_dim*2 if double_relation_embedding else hidden_dim
+        self.relation_dim = hidden_dim*num_relation_embedding
         
         self.entity_embedding = nn.Parameter(torch.zeros(nentity, self.entity_dim))
         nn.init.uniform_(
@@ -41,15 +44,17 @@ class KGEModel(nn.Module):
         )
         
         #Do not forget to modify this line when you add a new model in the "forward" function
-        if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE']:
+        if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE']:
             raise ValueError('model %s not supported' % model_name)
             
-        if model_name == 'RotatE' and (not double_entity_embedding or double_relation_embedding):
+        if model_name == 'RotatE' and (not double_entity_embedding or num_relation_embedding != 1):
             raise ValueError('RotatE should use --double_entity_embedding')
 
-        if model_name == 'ComplEx' and (not double_entity_embedding or not double_relation_embedding):
-            raise ValueError('ComplEx should use --double_entity_embedding and --double_relation_embedding')
-
+        if model_name == 'ComplEx' and (not double_entity_embedding or num_relation_embedding != 2):
+            raise ValueError('ComplEx should use --double_entity_embedding and --num_relation_embedding 2')
+        
+        if model_name == 'HAKE' and (not double_entity_embedding or num_relation_embedding != 3):
+            raise ValueError('ComplEx should use --double_entity_embedding and --num_relation_embedding 3')
 
     def forward(self, sample, mode='single'):
         '''
@@ -135,6 +140,7 @@ class KGEModel(nn.Module):
             'DistMult': self.DistMult,
             'ComplEx': self.ComplEx,
             'RotatE': self.RotatE,
+            'HAKE': self.HAKE,
         }
         
         if self.model_name in model_func:
@@ -212,6 +218,34 @@ class KGEModel(nn.Module):
 
         score = self.gamma.item() - score.sum(dim = 2)
         return score
+    
+    def HAKE(self, head, relation, tail, mode):
+        pi = 3.14159265358979323846
+        
+        phase_head, mod_head = torch.chunk(head, 2, dim=2)
+        phase_relation, mod_relation, bias_relation = torch.chunk(relation, 3, dim=2)
+        phase_tail, mod_tail = torch.chunk(tail, 2, dim=2)
+
+        phase_head = phase_head / (self.embedding_range.item() / pi)
+        phase_relation = phase_relation / (self.embedding_range.item() / pi)
+        phase_tail = phase_tail / (self.embedding_range.item() / pi)
+
+        if mode == 'head-batch':
+            phase_score = phase_head + (phase_relation - phase_tail)
+        else:
+            phase_score = (phase_head + phase_relation) - phase_tail
+
+        mod_relation = torch.abs(mod_relation)
+        bias_relation = torch.clamp(bias_relation, max=1)
+        indicator = (bias_relation < -mod_relation)
+        bias_relation[indicator] = -mod_relation[indicator]
+
+        r_score = mod_head * (mod_relation + bias_relation) - mod_tail * (1 - bias_relation)
+
+        phase_score = torch.sum(torch.abs(torch.sin(phase_score / 2)), dim=2) * self.phase_weight
+        r_score = torch.norm(r_score, dim=2) * self.modulus_weight
+
+        return self.gamma.item() - (phase_score + r_score)
 
 
 class GNNEncoder(nn.Module):
