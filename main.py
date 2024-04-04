@@ -2,6 +2,7 @@ import os
 import wandb
 import logging
 
+from tqdm.auto import tqdm
 from collections import defaultdict
 
 import torch
@@ -169,7 +170,7 @@ def main():
     print('#test: %d' % len(test_triples['head']))
 
     train_count, train_true_head, train_true_tail = defaultdict(lambda: 4), defaultdict(list), defaultdict(list)
-    for i in range(len(train_triples['head'])):
+    for i in tqdm(range(len(train_triples['head']))):
         head, relation, tail = train_triples['head'][i], train_triples['relation'][i], train_triples['tail'][i]
         head_type, tail_type = train_triples['head_type'][i], train_triples['tail_type'][i]
         train_count[(head, relation, head_type)] += 1
