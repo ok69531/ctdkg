@@ -104,6 +104,8 @@ def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimi
 def evaluate(model, edge_index, edge_type, head_loader, tail_loader, args):
     model.eval()
     
+    node_embedding = model.encode(edge_index, edge_type)
+    
     test_logs = defaultdict(list)
     for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
         for b in (b1, b2):
@@ -111,7 +113,6 @@ def evaluate(model, edge_index, edge_type, head_loader, tail_loader, args):
             positive_sample = positive_sample.to(device)
             negative_sample = negative_sample[:, 1:].to(device)
             
-            node_embedding = model.encode(edge_index, edge_type)
             y_pred_pos = model.decode(node_embedding[positive_sample[:, 0]], node_embedding[positive_sample[:, 2]], positive_sample[:, 1])
             
             if mode == 'head-batch':
