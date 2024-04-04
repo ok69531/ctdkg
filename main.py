@@ -265,8 +265,8 @@ def main():
             nrelation=nrelation,
             hidden_dim=args.hidden_dim,
             gamma=args.gamma,
-            double_entity_embedding=args.double_entity_embedding,
-            double_relation_embedding=args.double_relation_embedding
+            double_entity_embedding=True,
+            double_relation_embedding=True
         ).to(device)
         
         optimizer = optim.Adam(
