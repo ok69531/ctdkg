@@ -65,7 +65,7 @@ def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimi
 
             if args.negative_adversarial_sampling:
                 #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
-                negative_score = negative_score.view(args.batch_size, args.negative_sample_size)
+                negative_score = negative_score.view(negative_sample.shape)
                 negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
                                 * F.logsigmoid(-negative_score)).sum(dim = 1)
             else:
