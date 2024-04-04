@@ -2,6 +2,7 @@ import os
 import wandb
 import logging
 
+import numpy as np
 from tqdm.auto import tqdm
 from collections import defaultdict
 
@@ -11,7 +12,10 @@ import torch.nn.functional as F
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from model import KGEModel
+import torch_geometric
+from torch_geometric.nn import GAE
+
+from model import GNNEncoder, DistMultDecoder
 from set_seed import set_seed
 from argument import parse_args
 from dataloader import load_data, TrainDataset, TestDataset
@@ -32,7 +36,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # wandb.run.save()
 
 
-def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
+def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimizer, scheduler, args):
     model.train()
     
     epoch_logs = []
@@ -43,16 +47,29 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
             negative_sample = negative_sample.to(device)
             subsampling_weight = subsampling_weight.to(device)
             
-            negative_score = model((positive_sample, negative_sample), mode=mode)
+            node_embedding = model.encode(edge_index, edge_type)
+            positive_score = model.decode(node_embedding[positive_sample[:, 0]], node_embedding[positive_sample[:, 2]], positive_sample[:, 1])
+            positive_score = F.logsigmoid(positive_score)
+            
+            if mode == 'head-batch':
+                head_neg = negative_sample.view(-1)
+                true_tail = positive_sample[:, 2].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                negative_score = model.decode(node_embedding[head_neg], node_embedding[true_tail], true_rel)
+            elif mode == 'tail-batch':
+                tail_neg = negative_sample.view(-1)
+                true_head = positive_sample[:, 0].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                negative_score = model.decode(node_embedding[true_head], node_embedding[tail_neg], true_rel)
+
             if args.negative_adversarial_sampling:
                 #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
+                negative_score = negative_score.view(args.batch_size, args.negative_sample_size)
                 negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
                                 * F.logsigmoid(-negative_score)).sum(dim = 1)
             else:
-                negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
+                negative_score = F.logsigmoid(-negative_score)
 
-            positive_score = model(positive_sample)
-            positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
 
             if args.uni_weight:
                 positive_sample_loss = - positive_score.mean()
@@ -62,24 +79,10 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
                 negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
 
             loss = (positive_sample_loss + negative_sample_loss)/2
-            
-            if args.regularization != 0.0:
-                #Use L3 regularization for ComplEx and DistMult
-                regularization = args.regularization * (
-                    model.entity_embedding.norm(p = 3)**3 + 
-                    model.relation_embedding.norm(p = 3).norm(p = 3)**3
-                )
-                loss = loss + regularization
-                regularization_log = {'regularization': regularization.item()}
-            else:
-                regularization_log = {}
-            
             loss.backward()
-
             optimizer.step()
 
             log = {
-                **regularization_log,
                 'positive_sample_loss': positive_sample_loss.item(),
                 'negative_sample_loss': negative_sample_loss.item(),
                 'loss': loss.item()
@@ -98,20 +101,31 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
 
 
 @torch.no_grad()
-def evaluate(model, head_loader, tail_loader, args):
+def evaluate(model, edge_index, edge_type, head_loader, tail_loader, args):
     model.eval()
+    
+    node_embedding = model.encode(edge_index, edge_type)
     
     test_logs = defaultdict(list)
     for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
         for b in (b1, b2):
             positive_sample, negative_sample, mode = b
             positive_sample = positive_sample.to(device)
-            negative_sample = negative_sample.to(device)
+            negative_sample = negative_sample[:, 1:].to(device)
             
-            score = model((positive_sample, negative_sample), mode)
-
-            y_pred_pos = score[:, 0]
-            y_pred_neg = score[:, 1:]
+            y_pred_pos = model.decode(node_embedding[positive_sample[:, 0]], node_embedding[positive_sample[:, 2]], positive_sample[:, 1])
+            
+            if mode == 'head-batch':
+                head_neg = negative_sample.reshape(-1)
+                true_tail = positive_sample[:, 2].repeat_interleave(negative_sample.size(1))
+                true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
+                y_pred_neg = model.decode(node_embedding[head_neg], node_embedding[true_tail], true_rel)
+            elif mode == 'tail-batch':
+                tail_neg = negative_sample.reshape(-1)
+                true_head = positive_sample[:, 0].repeat_interleave(negative_sample.size(1))
+                true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
+                y_pred_neg = model.decode(node_embedding[true_head], node_embedding[tail_neg], true_rel)
+            y_pred_neg = y_pred_neg.view(negative_sample.shape)
 
             y_pred_pos = y_pred_pos.view(-1, 1)
             # optimistic rank: "how many negatives have a larger score than the positive?"
@@ -178,7 +192,18 @@ def main():
         train_true_head[(relation, tail)].append(head)
         train_true_tail[(head, relation)].append(tail)
 
+    dataset_head = torch.cat((train_triples['head'], valid_triples['head'], test_triples['head']))
+    dataset_tail = torch.cat((train_triples['tail'], valid_triples['tail'], test_triples['tail']))
+    dataset_head_type = np.concatenate((train_triples['head_type'], valid_triples['head_type'], test_triples['head_type']))
+    dataset_tail_type = np.concatenate((train_triples['tail_type'], valid_triples['tail_type'], test_triples['tail_type']))
 
+    for i in tqdm(range(len(dataset_head))):
+        dataset_head[i] = dataset_head[i] + entity_dict[dataset_head_type[i]][0]
+        dataset_tail[i] = dataset_tail[i] + entity_dict[dataset_tail_type[i]][0]
+
+    edge_index = torch.stack((dataset_head, dataset_tail)).to(device)
+    edge_type = torch.cat((train_triples['relation'], valid_triples['relation'], test_triples['relation'])).to(device)
+    
     random_sampling = False
     # validation loader
     valid_dataloader_head = DataLoader(
@@ -260,14 +285,9 @@ def main():
         )
         
         # Set training configuration
-        model = KGEModel(
-            model_name=args.model,
-            nentity=nentity,
-            nrelation=nrelation,
-            hidden_dim=args.hidden_dim,
-            gamma=args.gamma,
-            double_entity_embedding=args.double_entity_embedding,
-            num_relation_embedding=args.num_relation_embedding
+        model = GAE(
+            GNNEncoder(num_nodes = nentity, num_relations = nrelation, hidden_dim = args.hidden_dim, gnn_model = args.model, num_layers = 2),
+            DistMultDecoder(nrelation, args.hidden_dim)
         ).to(device)
         
         optimizer = optim.Adam(
@@ -280,7 +300,7 @@ def main():
         for epoch in range(1, args.num_epoch + 1):
             print(f"=== Epoch: {epoch}")
             
-            train_out = train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
+            train_out = train(model, device, edge_index, edge_type, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
             
             train_losses = {}
             for l in train_out[0].keys():
@@ -295,7 +315,7 @@ def main():
             # })
             
             if epoch % 10 == 0:
-                valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
+                valid_logs = evaluate(model, edge_index, edge_type, valid_dataloader_head, valid_dataloader_tail, args)
                 valid_metrics = {}
                 for metric in valid_logs:
                     valid_metrics[metric[:-5]] = torch.cat(valid_logs[metric]).mean().item()       
@@ -307,7 +327,7 @@ def main():
                 print(f"Valid hits@10': {valid_metrics['hits@10']:.5f}")
                 print('----------')
                 
-                test_logs = evaluate(model, test_dataloader_head, test_dataloader_tail, args)
+                test_logs = evaluate(model, edge_index, edge_type, test_dataloader_head, test_dataloader_tail, args)
                 test_metrics = {}
                 for metric in test_logs:
                     test_metrics[metric[:-5]] = torch.cat(test_logs[metric]).mean().item()       

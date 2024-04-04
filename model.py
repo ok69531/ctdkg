@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch_geometric.nn import RGCNConv
 
 
 class KGEModel(nn.Module):
@@ -245,3 +246,53 @@ class KGEModel(nn.Module):
         r_score = torch.norm(r_score, dim=2) * self.modulus_weight
 
         return self.gamma.item() - (phase_score + r_score)
+
+
+class GNNEncoder(nn.Module):
+    def __init__(self, num_nodes, num_relations, hidden_dim, gnn_model, num_layers, dropout = 0):
+        super(GNNEncoder, self).__init__()
+        
+        self.node_emb = nn.Parameter(torch.Tensor(num_nodes, hidden_dim))
+        self.gnn_model = gnn_model
+        self.dropout = dropout
+
+        if gnn_model == 'rgcn':
+            self.convs = nn.ModuleList()
+            for _ in range(num_layers):
+                self.convs.append(RGCNConv(hidden_dim, hidden_dim, num_relations, num_blocks=5))
+        
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.node_emb)
+        for conv in self.convs:
+            conv.reset_parameters()
+    
+    def forward(self, edge_index, edge_type):
+        x = self.node_emb
+        
+        if self.gnn_model == 'rgcn':
+            for conv in self.convs:
+                x = conv(x, edge_index, edge_type)
+                x = nn.functional.relu(x)
+                x = nn.functional.dropout(x, p = self.dropout, training = self.training)
+            x = self.convs[-1](x, edge_index, edge_type)
+        
+        return x
+
+
+class DistMultDecoder(nn.Module):
+    def __init__(self, num_relations, hidden_dim):
+        super(DistMultDecoder, self).__init__()
+        
+        self.rel_emb = nn.Parameter(torch.Tensor(num_relations, hidden_dim))
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.rel_emb)
+    
+    def forward(self, h, t, r):
+        rel = self.rel_emb[r]
+        score = h * rel * t
+        
+        return torch.sum(score, dim = 1)
