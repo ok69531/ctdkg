@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch_geometric.nn import RGCNConv
+from torch.nn.init import xavier_normal_
 
 
 class KGEModel(nn.Module):
@@ -42,6 +43,14 @@ class KGEModel(nn.Module):
             a=-self.embedding_range.item(), 
             b=self.embedding_range.item()
         )
+        
+        if model_name == 'HAKE':
+            nn.init.ones_(
+                tensor=self.relation_embedding[:, hidden_dim:2 * hidden_dim]
+            )
+            nn.init.zeros_(
+                tensor=self.relation_embedding[:, 2 * hidden_dim:3 * hidden_dim]
+            )
         
         #Do not forget to modify this line when you add a new model in the "forward" function
         if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE']:
@@ -296,3 +305,72 @@ class DistMultDecoder(nn.Module):
         score = h * rel * t
         
         return torch.sum(score, dim = 1)
+
+class Flatten(nn.Module):
+    def forward(self, x):
+        n, _, _, _ = x.size()
+        x = x.view(n, -1)
+        return x
+
+
+class ConvE(nn.Module):
+    def __init__(self, num_nodes, num_relations, hidden_dim, embedding_size_w=10,
+                 conv_channels=32, conv_kernel_size=3, embed_dropout=0.2, feature_map_dropout=0.2,
+                 proj_layer_dropout=0.3):
+        super().__init__()
+
+        self.num_e = num_nodes
+        self.num_r = num_relations
+        self.embedding_size_h = hidden_dim//embedding_size_w
+        self.embedding_size_w = embedding_size_w
+
+        flattened_size = (embedding_size_w * 2 - conv_kernel_size + 1) * \
+                         (self.embedding_size_h - conv_kernel_size + 1) * conv_channels
+
+        self.embed_e = nn.Embedding(num_embeddings=self.num_e, embedding_dim=hidden_dim)
+        self.embed_r = nn.Embedding(num_embeddings=self.num_r, embedding_dim=hidden_dim)
+
+        self.conv_e = nn.Sequential(
+            nn.Dropout(p=embed_dropout),
+            nn.Conv2d(in_channels=1, out_channels=conv_channels, kernel_size=conv_kernel_size),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=conv_channels),
+            nn.Dropout2d(p=feature_map_dropout),
+
+            Flatten(),
+            nn.Linear(in_features=flattened_size, out_features=hidden_dim),
+            nn.ReLU(),
+            nn.BatchNorm1d(num_features=hidden_dim),
+            nn.Dropout(p=proj_layer_dropout)
+        )
+        self.init()
+        
+    def init(self):
+        xavier_normal_(self.embed_e.weight.data)
+        xavier_normal_(self.embed_r.weight.data)
+
+    def forward(self, s, r):
+        embed_s = self.embed_e(s)
+        embed_r = self.embed_r(r)
+
+        embed_s = embed_s.view(-1, self.embedding_size_w, self.embedding_size_h)
+        embed_r = embed_r.view(-1, self.embedding_size_w, self.embedding_size_h)
+        conv_input = torch.cat([embed_s, embed_r], dim=1).unsqueeze(1)
+        out = self.conv_e(conv_input)
+
+        scores = out.mm(self.embed_e.weight.t())
+
+        return torch.sigmoid(scores)
+    
+    def valid(self, s, r, o):
+        embed_s = self.embed_e(s)
+        embed_o = self.embed_e(o)
+        embed_r = self.embed_r(r)
+        
+        embed_s = embed_s.view(-1, self.embedding_size_w, self.embedding_size_h)
+        embed_r = embed_r.view(-1, self.embedding_size_w, self.embedding_size_h)
+        conv_input = torch.cat([embed_s, embed_r], dim=1).unsqueeze(1)
+        out = self.conv_e(conv_input)
+        
+        scores = torch.sum(out*embed_o, dim=-1)
+        return scores
