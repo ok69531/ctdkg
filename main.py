@@ -304,8 +304,8 @@ def main():
                 print('----------')
                 print(f"Valid MRR: {valid_metrics['mrr']:.5f}")
                 print(f"Valid hits@1: {valid_metrics['hits@1']:.5f}")
-                print(f"Valid hits@3': {valid_metrics['hits@3']:.5f}")
-                print(f"Valid hits@10': {valid_metrics['hits@10']:.5f}")
+                print(f"Valid hits@3: {valid_metrics['hits@3']:.5f}")
+                print(f"Valid hits@10: {valid_metrics['hits@10']:.5f}")
                 
                 test_logs = evaluate(model, test_dataloader_head, test_dataloader_tail, args)
                 test_metrics = {}
@@ -314,8 +314,8 @@ def main():
                 
                 print('----------')
                 print(f"Test MRR: {test_metrics['mrr']:.5f}")
-                print(f"Test hits@1': {test_metrics['hits@1']:.5f}")
-                print(f"Test hits@3': {test_metrics['hits@3']:.5f}")
+                print(f"Test hits@1: {test_metrics['hits@1']:.5f}")
+                print(f"Test hits@3: {test_metrics['hits@3']:.5f}")
                 print(f"Test hits@10': {test_metrics['hits@10']:.5f}")
                 
                 # wandb.log({
