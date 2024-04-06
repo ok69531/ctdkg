@@ -17,10 +17,10 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
 from itertools import repeat   
 
-from model import ConvE
-from set_seed import set_seed
-from argument import parse_args
-from dataloader import load_data, TestDataset
+from module.model import ConvE
+from module.set_seed import set_seed
+from module.argument import parse_args
+from module.dataloader import load_data, TestDataset
 
 
 try:

@@ -12,10 +12,10 @@ import torch.nn.functional as F
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
-from model import KGEModel
-from set_seed import set_seed
-from argument import parse_args
-from dataloader import load_data, TrainDataset, TestDataset
+from module.model import KGEModel
+from module.set_seed import set_seed
+from module.argument import parse_args
+from module.dataloader import load_data, TrainDataset, TestDataset
 
 
 try:
