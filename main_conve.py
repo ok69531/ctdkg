@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torch import optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
 from itertools import repeat   
 
@@ -67,7 +67,8 @@ def train(model, train_dataloader_head, optimizer, scheduler, args, device):
             logging.info('Training the model... (%d/%d)' % (i, int(len(train_dataloader_head))))
             logging.info(log)
         
-    scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+    scheduler.step()
+    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     return epoch_logs
         
 
@@ -283,7 +284,8 @@ def main():
             filter(lambda p: p.requires_grad, model.parameters()), 
             lr=args.learning_rate
         )
-        scheduler = ReduceLROnPlateau(optimizer, 'min')
+        scheduler = StepLR(optimizer, step_size=10, gamma=0.8)
+        # scheduler = ReduceLROnPlateau(optimizer, 'min')
 
         
         for epoch in range(1, args.num_epoch + 1):

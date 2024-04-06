@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from torch import optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
 from model import KGEModel
 from set_seed import set_seed
@@ -39,6 +39,8 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
     epoch_logs = []
     for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
         for b in (b1, b2):
+            optimizer.zero_grad()
+            
             positive_sample, negative_sample, subsampling_weight, mode = b
             positive_sample = positive_sample.to(device)
             negative_sample = negative_sample.to(device)
@@ -92,7 +94,8 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
             logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
             logging.info(log)
      
-    scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
+    scheduler.step()
+    # scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
     # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     
     return epoch_logs
@@ -275,7 +278,8 @@ def main():
             filter(lambda p: p.requires_grad, model.parameters()), 
             lr=args.learning_rate
         )
-        scheduler = ReduceLROnPlateau(optimizer, 'min')
+        scheduler = StepLR(optimizer, step_size=10, gamma=0.8)
+        # scheduler = ReduceLROnPlateau(optimizer, 'min')
 
         
         for epoch in range(1, args.num_epoch + 1):
