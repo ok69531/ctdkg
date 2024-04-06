@@ -300,7 +300,7 @@ def main():
         lr=args.learning_rate
     )
     scheduler = StepLR(optimizer, step_size=10, gamma=0.8)
-    scheduler = ReduceLROnPlateau(optimizer, 'min')
+    # scheduler = ReduceLROnPlateau(optimizer, 'min')
 
     best_val_mrr = 0
     for epoch in range(1, args.num_epoch + 1):
