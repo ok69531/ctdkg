@@ -265,6 +265,7 @@ def main():
 
     # for seed in range(args.num_runs):
     set_seed(args.seed)
+    torch_geometric.seed_everything(args.seed)
     print(f'====================== run: {args.seed} ======================')
 
     train_dataloader_head = DataLoader(
