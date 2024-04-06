@@ -3,6 +3,7 @@ import wandb
 import logging
 
 import numpy as np
+from copy import deepcopy
 from tqdm.auto import tqdm
 from collections import defaultdict
 
@@ -33,7 +34,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # wandb.login(key = open('wandb_key.txt', 'r').readline())
 # wandb.init(project = f'ctdkg', entity = 'soyoung')
-# wandb.run.name = f'{args.dataset}-{args.model}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
+# wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 # wandb.run.save()
 
 def train(model, train_dataloader_head, optimizer, scheduler, args, device):
@@ -260,92 +261,122 @@ def main():
         collate_fn = TestDataset.collate_fn
     )
 
-    for seed in range(args.num_runs):
-        set_seed(seed)
-        print(f'====================== run: {seed} ======================')
+    # for seed in range(args.num_runs):
+    set_seed(seed)
+    print(f'====================== run: {seed} ======================')
 
-        train_dataloader_head = DataLoader(
-            TrainDataset(train_triples, nentity, nrelation, 
-                args.negative_sample_size, 'head-batch',
-                train_count, train_true_head, train_true_tail,
-                entity_dict), 
-            batch_size=args.batch_size,
-            shuffle=True, 
-            num_workers=args.num_workers,
-            collate_fn=TrainDataset.collate_fn
-        )
-        
-        # Set training configuration
-        model = ConvE(
-            num_nodes = nentity, num_relations = nrelation, hidden_dim = args.hidden_dim
-            ).to(device)
-        
-        optimizer = optim.Adam(
-            filter(lambda p: p.requires_grad, model.parameters()), 
-            lr=args.learning_rate
-        )
-        scheduler = StepLR(optimizer, step_size=10, gamma=0.8)
-        # scheduler = ReduceLROnPlateau(optimizer, 'min')
+    train_dataloader_head = DataLoader(
+        TrainDataset(train_triples, nentity, nrelation, 
+            args.negative_sample_size, 'head-batch',
+            train_count, train_true_head, train_true_tail,
+            entity_dict), 
+        batch_size=args.batch_size,
+        shuffle=True, 
+        num_workers=args.num_workers,
+        collate_fn=TrainDataset.collate_fn
+    )
+    
+    # Set training configuration
+    model = ConvE(
+        num_nodes = nentity, num_relations = nrelation, hidden_dim = args.hidden_dim
+        ).to(device)
+    
+    optimizer = optim.Adam(
+        filter(lambda p: p.requires_grad, model.parameters()), 
+        lr=args.learning_rate
+    )
+    scheduler = StepLR(optimizer, step_size=10, gamma=0.8)
+    # scheduler = ReduceLROnPlateau(optimizer, 'min')
 
+    best_val_mrr = 0
+    for epoch in range(1, args.num_epoch + 1):
+        print(f"=== Epoch: {epoch}")
         
-        for epoch in range(1, args.num_epoch + 1):
-            print(f"=== Epoch: {epoch}")
+        train_out = train(model, train_dataloader_head, optimizer, scheduler, args, device)
+        
+        train_losses = {}
+        for l in train_out[0].keys():
+            train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
+            print(f'Train {l}: {train_losses[l]:.5f}')
+            print('----------')
+        
+        # wandb.log({
+        #     'Train positive sample loss': train_losses['positive_sample_loss'],
+        #     'Train negative sample loss': train_losses['negative_sample_loss'],
+        #     'Train loss': train_losses['loss']
+        # })
+        
+        if epoch % 10 == 0:
+            valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
+            valid_metrics = {}
+            for metric in valid_logs:
+                valid_metrics[metric[:-5]] = torch.cat(valid_logs[metric]).mean().item()       
+
             
-            train_out = train(model, train_dataloader_head, optimizer, scheduler, args, device)
+            print(f"Valid MRR: {valid_metrics['mrr']:.5f}")
+            print(f"Valid hits@1: {valid_metrics['hits@1']:.5f}")
+            print(f"Valid hits@3': {valid_metrics['hits@3']:.5f}")
+            print(f"Valid hits@10': {valid_metrics['hits@10']:.5f}")
+            print('----------')
             
-            train_losses = {}
-            for l in train_out[0].keys():
-                train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
-                print(f'Train {l}: {train_losses[l]:.5f}')
-                print('----------')
+            test_logs = evaluate(model, edge_index, edge_type, test_dataloader_head, test_dataloader_tail, args)
+            test_metrics = {}
+            for metric in test_logs:
+                test_metrics[metric[:-5]] = torch.cat(test_logs[metric]).mean().item()       
+            
+            print(f"Test MRR: {test_metrics['mrr']:.5f}")
+            print(f"Test hits@1': {test_metrics['hits@1']:.5f}")
+            print(f"Test hits@3': {test_metrics['hits@3']:.5f}")
+            print(f"Test hits@10': {test_metrics['hits@10']:.5f}")
             
             # wandb.log({
-            #     'Train positive sample loss': train_losses['positive_sample_loss'],
-            #     'Train negative sample loss': train_losses['negative_sample_loss'],
-            #     'Train loss': train_losses['loss']
+            #     'Valid MRR': valid_metrics['mrr'],
+            #     'Valid hits@1': valid_metrics['hits@1'],
+            #     'Valid hits@3': valid_metrics['hits@3'],
+            #     'Valid hits@10': valid_metrics['hits@10'],
+            #     'Test MRR': test_metrics['mrr'],
+            #     'Test hits@1': test_metrics['hits@1'],
+            #     'Test hits@3': test_metrics['hits@3'],
+            #     'Test hits@10': test_metrics['hits@10']
             # })
             
-            if epoch % 10 == 0:
-                valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
-                valid_metrics = {}
-                for metric in valid_logs:
-                    valid_metrics[metric[:-5]] = torch.cat(valid_logs[metric]).mean().item()       
+            if valid_metrics['mrr'] > best_val_mrr:
+                best_epoch = epoch
+                best_val_result = {
+                    'best_epoch': best_epoch,
+                    'best_val_mrr': valid_metrics['mrr'],
+                    'val_hit1': valid_metrics['hits@1'],
+                    'val_hit3': valid_metrics['hits@3'],
+                    'val_hit10': valid_metrics['hits@10'],
+                    'test_mrr': test_metrics['mrr'],
+                    'test_hit1': test_metrics['hits@1'],
+                    'test_hit3': test_metrics['hits@3'],
+                    'test_hit10': test_metrics['hits@10']
+                }
+                model_params = deepcopy(model.state_dict())
+                optim_dict = deepcopy(optimizer.state_dict())
+                scheduler_dict = deepcopy(scheduler.state_dict())
 
-                
-                print(f"Valid MRR: {valid_metrics['mrr']:.5f}")
-                print(f"Valid hits@1: {valid_metrics['hits@1']:.5f}")
-                print(f"Valid hits@3': {valid_metrics['hits@3']:.5f}")
-                print(f"Valid hits@10': {valid_metrics['hits@10']:.5f}")
-                print('----------')
-                
-                test_logs = evaluate(model, edge_index, edge_type, test_dataloader_head, test_dataloader_tail, args)
-                test_metrics = {}
-                for metric in test_logs:
-                    test_metrics[metric[:-5]] = torch.cat(test_logs[metric]).mean().item()       
-                
-                print(f"Test MRR: {test_metrics['mrr']:.5f}")
-                print(f"Test hits@1': {test_metrics['hits@1']:.5f}")
-                print(f"Test hits@3': {test_metrics['hits@3']:.5f}")
-                print(f"Test hits@10': {test_metrics['hits@10']:.5f}")
-                
-                # wandb.log({
-                #     'Valid MRR': valid_metrics['mrr'],
-                #     'Valid hits@1': valid_metrics['hits@1'],
-                #     'Valid hits@3': valid_metrics['hits@3'],
-                #     'Valid hits@10': valid_metrics['hits@10'],
-                #     'Test MRR': test_metrics['mrr'],
-                #     'Test hits@1': test_metrics['hits@1'],
-                #     'Test hits@3': test_metrics['hits@3'],
-                #     'Test hits@10': test_metrics['hits@10']
-                # })
-
-        check_points = {'seed': seed,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'scheduler_dict': scheduler.state_dict()}
-        
-        file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{seed}.pt'
-        torch.save(check_points, f'{save_path}/{file_name}')
+    print('')
+    for metric in best_val_result.keys():
+        print(f'{metric}: {best_val_result[metric]:.5f}')
+    
+    check_points = {'seed': args.seed,
+                    'best_epoch': best_epoch,
+                    'model_state_dict': model_params,
+                    'optimizer_state_dict': optim_dict,
+                    'scheduler_dict': scheduler_dict}
+    
+    file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{seed}.pt'
+    torch.save(check_points, f'{save_path}/{file_name}')
+    
+    
+    log_save_path = f'best_val_log/{args.dataset}'
+    if os.path.isdir(log_save_path):
+        pass
+    else:
+        os.makedirs(log_save_path)
+    torch.save(best_val_result, f'{log_save_path}/{args.model}_{args.seed}')
 
 
 if __name__ == '__main__':

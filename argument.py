@@ -14,6 +14,8 @@ def parse_args(args=None):
     # parser.add_argument('--do_test', action='store_true')
     # parser.add_argument('--evaluate_train', action='store_true', help='Evaluate on training data')
     
+    parser.add_argument('--seed', type=int, default=0)
+    
     parser.add_argument('--dataset', type=str, default='cd', help='dataset name, default to cd')
     parser.add_argument('--model', default='TransE', type=str, help='TransE, RotatE, DistMult, ComplEx, rgcn')
     parser.add_argument('-de', '--double_entity_embedding', action='store_true')
