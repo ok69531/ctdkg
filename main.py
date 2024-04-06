@@ -279,7 +279,7 @@ def main():
         filter(lambda p: p.requires_grad, model.parameters()), 
         lr=args.learning_rate
     )
-    scheduler = StepLR(optimizer, step_size=10, gamma=0.8)
+    scheduler = StepLR(optimizer, step_size=30, gamma=0.8)
     # scheduler = ReduceLROnPlateau(optimizer, 'min')
 
     best_val_mrr = 0

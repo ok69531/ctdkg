@@ -262,8 +262,8 @@ def main():
     )
 
     # for seed in range(args.num_runs):
-    set_seed(seed)
-    print(f'====================== run: {seed} ======================')
+    set_seed(args.seed)
+    print(f'====================== run: {args.seed} ======================')
 
     train_dataloader_head = DataLoader(
         TrainDataset(train_triples, nentity, nrelation, 
@@ -285,7 +285,7 @@ def main():
         filter(lambda p: p.requires_grad, model.parameters()), 
         lr=args.learning_rate
     )
-    scheduler = StepLR(optimizer, step_size=10, gamma=0.8)
+    scheduler = StepLR(optimizer, step_size=30, gamma=0.8)
     # scheduler = ReduceLROnPlateau(optimizer, 'min')
 
     best_val_mrr = 0
