@@ -397,6 +397,7 @@ def main():
             
             if valid_metrics['mrr'] > best_val_mrr:
                 best_epoch = epoch
+                best_val_mrr = valid_metrics['mrr']
                 best_val_result = {
                     'best_epoch': best_epoch,
                     'best_val_mrr': valid_metrics['mrr'],
