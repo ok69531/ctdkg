@@ -13,7 +13,6 @@ import torch
 from torch_geometric.data import Data
 
 from generate_negative import NegativeSampling
-from data_download import download_ctd_data
 
 
 chem_col = 'ChemicalID'
@@ -429,7 +428,8 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     path_map = {name: i for i, name in enumerate(uniq_path)}
 
     edge_type_map = {
-        'gene_related_path': 0
+        'gene_related_path': 0,
+        'path_related_gene': 1
     }
 
     # mapping the chemical and disease id
@@ -444,9 +444,10 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     }
     data.edge_index_dict = {
         ('gene', 'gene_related_path', 'pathway'): torch.from_numpy(gene_path.values.T).to(torch.long),
+        ('pathway', 'path_related_gene', 'gene'): torch.from_numpy(gene_path.values.T[[1,0]]).to(torch.long),
     }
     data.edge_reltype = {
-        rel: torch.full((edge.size(1), 1), fill_value = i).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+        (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
     data.num_relations = len(data.edge_index_dict)
     
@@ -743,6 +744,7 @@ def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
     
     return data, save_path
 
+
 def build_phenod_graph(file_path = 'raw', save_path = 'processed/phenod'):
     print('>>> Processing Phenotype-Disease Data ...')
     print('----------------------------------------------------------------------------')
@@ -821,6 +823,64 @@ def build_phenod_graph(file_path = 'raw', save_path = 'processed/phenod'):
     print('Phenotype-Disease graph is successfully constructed.')
     return data, save_path
 
+
+def build_cpheno_graph(file_path = 'raw', save_path = 'processed/cpheno'):
+    print('>>> Processing Chemical-Phenotype Data ...')
+    print('----------------------------------------------------------------------------')
+    
+    chem_pheno_tmp = pd.read_csv(
+        f'{file_path}/CTD_pheno_term_ixns.csv.gz',
+        skiprows = list(range(27))+[28], compression = 'gzip')
+    
+    chem_col = 'chemicalid'
+    pheno_col = 'phenotypeid'
+    
+    chem_pheno = chem_pheno_tmp[[chem_col, pheno_col]].drop_duplicates()
+    
+    ### build graph
+    uniq_chem = chem_pheno[chem_col].unique()
+    chem_map = {name: i for i, name in enumerate(uniq_chem)}
+
+    uniq_pheno = chem_pheno[pheno_col].unique()
+    pheno_map = {name: i for i, name in enumerate(uniq_pheno)}
+
+    edge_type_map = {
+        'chem_inferred_pheno': 0
+    }
+
+    # mapping the phenotype and disease id
+    chem_pheno[chem_col] = chem_pheno[chem_col].apply(lambda x: chem_map[x])
+    chem_pheno[pheno_col] = chem_pheno[pheno_col].apply(lambda x: pheno_map[x])
+
+    data = Data()
+    data.num_nodes_dict = {
+        'chemical': len(chem_map),
+        'phenotype': len(pheno_map)
+    }
+    data.edge_index_dict = {
+        ('chemical', 'chem_inferred_pheno', 'phenotype'): torch.from_numpy(chem_pheno.values.T).to(torch.long)
+    }
+    data.edge_reltype = {
+        (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
+    }
+    data.num_relations = len(data.edge_index_dict)
+
+    ### save chemical/disease/rel_type mapping
+    if isdir(save_path):
+        pass
+    else:
+        makedirs(save_path)
+
+    torch.save(data, f'{save_path}/cpheno.pt')
+    torch.save(chem_map, f'{save_path}/chem_map')
+    torch.save(pheno_map, f'{save_path}/pheno_map')
+    torch.save(edge_type_map, f'{save_path}/rel_type_map')
+
+    print('Phenotype-Disease graph is successfully constructed.')
+    
+    return data, save_path
+
+
 def build_benchmarks(data_type, train_frac, valid_frac):
     print('>>> Build Benchmark Dataset ...')
     
@@ -843,6 +903,8 @@ def build_benchmarks(data_type, train_frac, valid_frac):
         data, save_path = build_cgd_graph()
     elif data_type == 'phenod':
         data, save_path = build_phenod_graph()
+    elif data_type == 'cpheno':
+        data, save_path = build_cpheno_graph()
     # elif data_type == :
     
     ### split data
@@ -896,4 +958,5 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 # build_benchmarks('cpath', 0.9, 0.05)
 # build_benchmarks('gpath', 0.9, 0.05)
 # build_benchmarks('cgd', 0.98, 0.01)
-build_benchmarks('phenod', 0.9, 0.05)
+# build_benchmarks('phenod', 0.9, 0.05)
+# build_benchmarks('cpheno', 0.9, 0.05)
