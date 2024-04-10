@@ -1,3 +1,5 @@
+# https://github.com/malllabiisc/CompGCN
+
 import inspect, torch
 from torch import nn
 from torch_scatter import scatter, scatter_add

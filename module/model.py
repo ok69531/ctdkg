@@ -1,3 +1,6 @@
+# https://github.com/DeepGraphLearning/KnowledgeGraphEmbedding
+# https://github.com/malllabiisc/CompGCN
+
 import torch
 import torch.nn as nn
 from torch.nn.init import xavier_normal_
@@ -382,7 +385,7 @@ class ConvE(nn.Module):
         return scores
 
 
-# --------------------------------- ConpGCN --------------------------------- #
+# --------------------------------- CompGCN --------------------------------- #
 class CompGCNBase(nn.Module):
     def __init__(self, hidden_dim, nentity, nrelation, edge_index, edge_type, num_bases=5, score_func='dismult', bias=False, dropout=0, opn='mult'):
         super(CompGCNBase, self).__init__()
