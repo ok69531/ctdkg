@@ -19,7 +19,7 @@ from itertools import repeat
 from model import ConvE
 from set_seed import set_seed
 from argument import parse_args
-from dataloader import load_data, TestDataset
+from dataloader import load_data, TrainDataset, TestDataset
 
 
 try:
@@ -69,7 +69,68 @@ def train(model, train_dataloader_head, optimizer, scheduler, args, device):
         
     scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     return epoch_logs
+
+def negative_train(model, device,  head_loader, tail_loader, optimizer, scheduler, args):
+    model.train()
+    
+    epoch_logs = []
+    for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
+        for b in (b1, b2):
+            positive_sample, negative_sample, subsampling_weight, mode = b
+            positive_sample = positive_sample.to(device)
+            negative_sample = negative_sample.to(device)
+            subsampling_weight = subsampling_weight.to(device)
+            
+            positive_score = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+            positive_score = F.logsigmoid(positive_score)
+            positive_score.shape
+            if mode == 'head-batch':
+                head_neg = negative_sample.view(-1)
+                true_tail = positive_sample[:, 2].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                negative_score = model.valid(head_neg, true_rel, true_tail)
+            elif mode == 'tail-batch':
+                tail_neg = negative_sample.view(-1)
+                true_head = positive_sample[:, 0].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                negative_score = model.valid(true_head, true_rel, tail_neg)
+
+            if args.negative_adversarial_sampling:
+                #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
+                negative_score = negative_score.view(negative_sample.shape)
+                negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
+                                * F.logsigmoid(-negative_score)).sum(dim = 1)
+            else:
+                negative_score = F.logsigmoid(-negative_score)
+
+
+            if args.uni_weight:
+                positive_sample_loss = - positive_score.mean()
+                negative_sample_loss = - negative_score.mean()
+            else:
+                positive_sample_loss = - (subsampling_weight * positive_score).sum()/subsampling_weight.sum()
+                negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
+
+            loss = (positive_sample_loss + negative_sample_loss)/2
+            loss.backward()
+            optimizer.step()
+
+            log = {
+                'positive_sample_loss': positive_sample_loss.item(),
+                'negative_sample_loss': negative_sample_loss.item(),
+                'loss': loss.item()
+            }
+            
+            epoch_logs.append(log)
         
+        if i % 1000 == 0:
+            logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+            logging.info(log)
+     
+    scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
+    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+    
+    return epoch_logs        
 
 @torch.no_grad()
 def evaluate(model, head_loader, tail_loader, args):
@@ -123,7 +184,7 @@ def evaluate(model, head_loader, tail_loader, args):
     return test_logs
 
 
-class TrainDataset(Dataset):
+class ConvETrainDataset(Dataset):
     def __init__(self, triples, nentity, nrelation, negative_sample_size, mode, count, true_head, true_tail, entity_dict):
         self.len = len(triples['head'])
         self.triples = triples
@@ -263,16 +324,40 @@ def main():
         set_seed(seed)
         print(f'====================== run: {seed} ======================')
 
-        train_dataloader_head = DataLoader(
-            TrainDataset(train_triples, nentity, nrelation, 
-                args.negative_sample_size, 'head-batch',
-                train_count, train_true_head, train_true_tail,
-                entity_dict), 
-            batch_size=args.batch_size,
-            shuffle=True, 
-            num_workers=args.num_workers,
-            collate_fn=TrainDataset.collate_fn
-        )
+        if args.negative_loss:
+            train_dataloader_head = DataLoader(
+                TrainDataset(train_triples, nentity, nrelation, 
+                    args.negative_sample_size, 'head-batch',
+                    train_count, train_true_head, train_true_tail,
+                    entity_dict), 
+                batch_size=args.batch_size,
+                shuffle=True, 
+                num_workers=args.num_workers,
+                collate_fn=TrainDataset.collate_fn
+            )
+
+            train_dataloader_tail = DataLoader(
+                TrainDataset(train_triples, nentity, nrelation, 
+                    args.negative_sample_size, 'tail-batch',
+                    train_count, train_true_head, train_true_tail,
+                    entity_dict), 
+                batch_size=args.batch_size,
+                shuffle=True, 
+                num_workers=args.num_workers,
+                collate_fn=TrainDataset.collate_fn
+            )
+            
+        else:
+            train_dataloader_head = DataLoader(
+                ConvETrainDataset(train_triples, nentity, nrelation, 
+                    args.negative_sample_size, 'head-batch',
+                    train_count, train_true_head, train_true_tail,
+                    entity_dict), 
+                batch_size=args.batch_size,
+                shuffle=True, 
+                num_workers=args.num_workers,
+                collate_fn=ConvETrainDataset.collate_fn
+            )
         
         # Set training configuration
         model = ConvE(
@@ -289,7 +374,10 @@ def main():
         for epoch in range(1, args.num_epoch + 1):
             print(f"=== Epoch: {epoch}")
             
-            train_out = train(model, train_dataloader_head, optimizer, scheduler, args, device)
+            if args.negative_loss:
+                train_out = negative_train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
+            else:
+                train_out = train(model, train_dataloader_head, optimizer, scheduler, args, device)
             
             train_losses = {}
             for l in train_out[0].keys():
