@@ -334,7 +334,7 @@ def main():
             DistMultDecoder(nrelation, args.hidden_dim)
         ).to(device)
     elif args.model == 'compgcn':
-        model = CompGCNBase(args.hidden_dim, args.nentity, args.nrelation, edge_index, edge_type)
+        model = CompGCNBase(args.hidden_dim, args.nentity, args.nrelation, edge_index, edge_type).to(device)
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), 
