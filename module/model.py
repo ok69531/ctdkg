@@ -307,10 +307,13 @@ class DistMultDecoder(nn.Module):
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.rel_emb)
     
-    def forward(self, h, t, r):
-        rel = self.rel_emb[r]
-        score = h * rel * t
-        
+    def forward(self, h, r, t, mode):
+        r = self.rel_emb[r]
+        if mode == 'head-batch':
+            score = h * (r * t)
+        else:
+            score = (h * r) * t
+
         return torch.sum(score, dim = 1)
 
 

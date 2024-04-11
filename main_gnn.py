@@ -53,7 +53,7 @@ def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimi
             
             if args.model == 'rgcn':
                 node_embedding = model.encode(edge_index, edge_type)
-                positive_score = model.decode(node_embedding[positive_sample[:, 0]], node_embedding[positive_sample[:, 2]], positive_sample[:, 1])
+                positive_score = model.decode(node_embedding[positive_sample[:, 0]], positive_sample[:, 1], node_embedding[positive_sample[:, 2]])
                 positive_score = F.logsigmoid(positive_score)
             elif args.model == 'compgcn':
                 h, r, t = model(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
@@ -66,7 +66,7 @@ def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimi
                 true_tail = positive_sample[:, 2].repeat_interleave(args.negative_sample_size)
                 true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
                 if args.model == 'rgcn':
-                    negative_score = model.decode(node_embedding[head_neg], node_embedding[true_tail], true_rel)
+                    negative_score = model.decode(node_embedding[head_neg], true_rel, node_embedding[true_tail], mode)
                 elif args.model == 'compgcn':
                     h, r, t = model(head_neg, true_rel, true_tail)
                     negative_score = h * r * t
@@ -76,7 +76,7 @@ def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimi
                 true_head = positive_sample[:, 0].repeat_interleave(args.negative_sample_size)
                 true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
                 if args.model == 'rgcn':
-                    negative_score = model.decode(node_embedding[true_head], node_embedding[tail_neg], true_rel)
+                    negative_score = model.decode(node_embedding[true_head], true_rel, node_embedding[tail_neg], mode)
                 elif args.model == 'compgcn':
                     h, r, t = model(true_head, true_rel, tail_neg)
                     negative_score = h * r * t
@@ -136,7 +136,7 @@ def evaluate(model, edge_index, edge_type, head_loader, tail_loader, args):
             negative_sample = negative_sample[:, 1:].to(device)
             
             if args.model == 'rgcn':
-                y_pred_pos = model.decode(node_embedding[positive_sample[:, 0]], node_embedding[positive_sample[:, 2]], positive_sample[:, 1])
+                y_pred_pos = model.decode(node_embedding[positive_sample[:, 0]], positive_sample[:, 1], node_embedding[positive_sample[:, 2]], mode)
             elif args.model == 'compgcn':
                 h, r, t = model(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
                 y_pred_pos = h * r * t
@@ -147,7 +147,7 @@ def evaluate(model, edge_index, edge_type, head_loader, tail_loader, args):
                 true_tail = positive_sample[:, 2].repeat_interleave(negative_sample.size(1))
                 true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
                 if args.model == 'rgcn':
-                    y_pred_neg = model.decode(node_embedding[head_neg], node_embedding[true_tail], true_rel)
+                    y_pred_neg = model.decode(node_embedding[head_neg], true_rel, node_embedding[true_tail], mode)
                 elif args.model == 'compgcn':
                     h, r, t = model(head_neg, true_rel, true_tail)
                     y_pred_neg = h * r * t
@@ -157,7 +157,7 @@ def evaluate(model, edge_index, edge_type, head_loader, tail_loader, args):
                 true_head = positive_sample[:, 0].repeat_interleave(negative_sample.size(1))
                 true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
                 if args.model == 'rgcn':
-                    y_pred_neg = model.decode(node_embedding[true_head], node_embedding[tail_neg], true_rel)
+                    y_pred_neg = model.decode(node_embedding[true_head], true_rel, node_embedding[tail_neg], mode)
                 elif args.model == 'compgcn':
                     h, r, t = model(true_head, true_rel, tail_neg)
                     y_pred_neg = h * r * t
