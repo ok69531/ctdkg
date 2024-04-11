@@ -53,7 +53,7 @@ def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimi
             
             if args.model == 'rgcn':
                 node_embedding = model.encode(edge_index, edge_type)
-                positive_score = model.decode(node_embedding[positive_sample[:, 0]], positive_sample[:, 1], node_embedding[positive_sample[:, 2]])
+                positive_score = model.decode(node_embedding[positive_sample[:, 0]], positive_sample[:, 1], node_embedding[positive_sample[:, 2]], mode)
                 positive_score = F.logsigmoid(positive_score)
             elif args.model == 'compgcn':
                 h, r, t = model(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
