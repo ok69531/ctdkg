@@ -953,6 +953,7 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 
 
 # build_benchmarks('cd', 0.9, 0.05)
+# build_benchmarks('gd', 0.98, 0.01)
 # build_benchmarks('cg-v1', 0.9, 0.05)
 # build_benchmarks('cg-v2', 0.9, 0.05)
 # build_benchmarks('cpath', 0.9, 0.05)

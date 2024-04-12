@@ -30,7 +30,7 @@ def parse_args(args=None):
     parser.add_argument('-b', '--batch_size', default=1024, type=int)
     parser.add_argument('-r', '--regularization', default=0.0, type=float)
     parser.add_argument('--test_batch_size', default=32, type=int, help='valid/test batch size')
-    parser.add_argument('--uni_weight', action='store_true', 
+    parser.add_argument('--uni_weight', default=True, 
                         help='Otherwise use subsampling weighting like in word2vec')
     parser.add_argument('-nl', '--negative_loss', action='store_true', 
                         help='use negative sampling loss to train ConvE')
