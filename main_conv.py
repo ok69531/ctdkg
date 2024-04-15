@@ -33,7 +33,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 wandb.login(key = open('wandb_key.txt', 'r').readline())
 wandb.init(project = f'ctdkg', entity = 'soyoung')
-wandb.run.name = f'{args.dataset}-{args.model}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
+wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 wandb.run.save()
 
 
