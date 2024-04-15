@@ -265,7 +265,7 @@ class KGEModel(nn.Module):
 
 # --------------------------------- RGCN --------------------------------- #
 class GNNEncoder(nn.Module):
-    def __init__(self, num_nodes, num_relations, hidden_dim, gnn_model, num_layers, dropout = 0):
+    def __init__(self, num_nodes, num_relations, hidden_dim, gnn_model, num_layers, dropout = 0.3):
         super(GNNEncoder, self).__init__()
         
         self.node_emb = nn.Parameter(torch.Tensor(num_nodes, hidden_dim))
