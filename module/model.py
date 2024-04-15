@@ -388,6 +388,63 @@ class ConvE(nn.Module):
         return scores
 
 
+# --------------------------------- ConvKB --------------------------------- #
+class ConvKB(nn.Module):
+    def __init__(self, nentity, nrelation, hidden_dim, out_channels=64, kernel_size=1, dropout=0.3):
+        super(ConvKB, self).__init__()
+        
+        self.hidden_dim = hidden_dim
+        self.kernel_size = kernel_size
+        self.out_channels = out_channels
+        
+        self.ent_embedding = nn.Embedding(nentity, self.hidden_dim)
+        self.rel_embedding = nn.Embedding(nrelation, self.hidden_dim)
+        
+        self.conv1_bn = nn.BatchNorm2d(1)
+        self.conv_layer = nn.Conv2d(1, self.out_channels, (self.kernel_size, 3))
+        self.conv2_bn = nn.BatchNorm2d(self.out_channels)
+        self.dropout = nn.Dropout(dropout)
+        self.non_linearity = nn.ReLU()
+        self.fc_layer = nn.Linear((self.hidden_dim - self.kernel_size + 1) * self.out_channels, 1, bias = False)
+        
+        self.init_parameters()
+    
+    def init_parameters(self):
+        nn.init.xavier_uniform_(self.ent_embedding.weight.data)
+        nn.init.xavier_uniform_(self.rel_embedding.weight.data)
+        nn.init.xavier_uniform_(self.fc_layer.weight.data)
+        nn.init.xavier_uniform_(self.conv_layer.weight.data)
+    
+    def _calc(self, h, r, t):
+        h = h.unsqueeze(1)
+        r = r.unsqueeze(1)
+        t = t.unsqueeze(1)
+        
+        conv_input = torch.cat([h, r, t], 1)
+        conv_input = conv_input.transpose(1, 2)
+        conv_input = conv_input.unsqueeze(1)
+        conv_input = self.conv1_bn(conv_input)
+        
+        out_conv = self.conv_layer(conv_input)
+        out_conv = self.conv2_bn(out_conv)
+        out_conv = self.non_linearity(out_conv)
+        out_conv = out_conv.view(-1, (self.hidden_dim - self.kernel_size + 1) * self.out_channels)
+        
+        input_fc = self.dropout(out_conv)
+        score = self.fc_layer(input_fc).view(-1)
+        
+        return -score
+    
+    def forward(self, h, r, t):
+        h = self.ent_embedding(h)
+        r = self.rel_embedding(r)
+        t = self.ent_embedding(t)
+        
+        score = self._calc(h, r, t)
+        
+        return score
+
+
 # --------------------------------- CompGCN --------------------------------- #
 class CompGCNBase(nn.Module):
     def __init__(self, hidden_dim, nentity, nrelation, edge_index, edge_type, num_bases=5, score_func='dismult', bias=False, dropout=0, opn='mult'):

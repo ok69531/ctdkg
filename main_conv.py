@@ -16,7 +16,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from itertools import repeat   
 
-from module.model import ConvE
+from module.model import ConvE, ConvKB
 from module.set_seed import set_seed
 from module.argument import parse_args
 from module.dataloader import load_data, TrainDataset, TestDataset
@@ -31,10 +31,11 @@ except:
 logging.basicConfig(format='', level=logging.INFO)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# wandb.login(key = open('wandb_key.txt', 'r').readline())
-# wandb.init(project = f'ctdkg', entity = 'soyoung')
-# wandb.run.name = f'{args.dataset}-{args.model}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
-# wandb.run.save()
+wandb.login(key = open('wandb_key.txt', 'r').readline())
+wandb.init(project = f'ctdkg', entity = 'soyoung')
+wandb.run.name = f'{args.dataset}-{args.model}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
+wandb.run.save()
+
 
 def train(model, train_dataloader_head, optimizer, scheduler, args, device):
     model.train()
@@ -70,30 +71,46 @@ def train(model, train_dataloader_head, optimizer, scheduler, args, device):
     scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     return epoch_logs
 
+
 def negative_train(model, device,  head_loader, tail_loader, optimizer, scheduler, args):
     model.train()
     
     epoch_logs = []
     for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
         for b in (b1, b2):
+            optimizer.zero_grad()
+            
             positive_sample, negative_sample, subsampling_weight, mode = b
             positive_sample = positive_sample.to(device)
             negative_sample = negative_sample.to(device)
             subsampling_weight = subsampling_weight.to(device)
             
-            positive_score = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
-            positive_score = F.logsigmoid(positive_score)
-            positive_score.shape
+            if args.model == 'conve':
+                positive_score = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+                positive_score = F.logsigmoid(positive_score)
+            elif args.model == 'convkb':
+                h, r, t = positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2]
+                positive_score = model(h, r, t)
+                positive_score = F.logsigmoid(positive_score)
+
+            
             if mode == 'head-batch':
                 head_neg = negative_sample.view(-1)
                 true_tail = positive_sample[:, 2].repeat_interleave(args.negative_sample_size)
                 true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
-                negative_score = model.valid(head_neg, true_rel, true_tail)
+                if args.model == 'conve':
+                    negative_score = model.valid(head_neg, true_rel, true_tail)
+                elif args.model == 'convkb':
+                    negative_score = model(head_neg, true_rel, true_tail)
+                    
             elif mode == 'tail-batch':
                 tail_neg = negative_sample.view(-1)
                 true_head = positive_sample[:, 0].repeat_interleave(args.negative_sample_size)
                 true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
-                negative_score = model.valid(true_head, true_rel, tail_neg)
+                if args.model == 'conve':
+                    negative_score = model.valid(true_head, true_rel, tail_neg)
+                elif args.model == 'convkb':
+                    negative_score = model(true_head, true_rel, tail_neg)
 
             if args.negative_adversarial_sampling:
                 #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
@@ -132,6 +149,7 @@ def negative_train(model, device,  head_loader, tail_loader, optimizer, schedule
     
     return epoch_logs        
 
+
 @torch.no_grad()
 def evaluate(model, head_loader, tail_loader, args):
     model.eval()
@@ -143,18 +161,27 @@ def evaluate(model, head_loader, tail_loader, args):
             positive_sample = positive_sample.to(device)
             negative_sample = negative_sample[:, 1:].to(device)
             
-            y_pred_pos = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+            if args.model == 'conve':
+                y_pred_pos = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+            elif args.model == 'convkb':
+                y_pred_pos = model(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
             
             if mode == 'head-batch':
                 head_neg = negative_sample.reshape(-1)
                 true_tail = positive_sample[:, 2].repeat_interleave(negative_sample.size(1))
                 true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
-                y_pred_neg = model.valid(head_neg, true_rel, true_tail)
+                if args.model == 'conve':
+                    y_pred_neg = model.valid(head_neg, true_rel, true_tail)
+                elif args.model == 'convkb':
+                    y_pred_neg = model(head_neg, true_rel, true_tail)
             elif mode == 'tail-batch':
                 tail_neg = negative_sample.reshape(-1)
                 true_head = positive_sample[:, 0].repeat_interleave(negative_sample.size(1))
                 true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
-                y_pred_neg = model.valid(true_head, true_rel, tail_neg)
+                if args.model == 'conve':
+                    y_pred_neg = model.valid(true_head, true_rel, tail_neg)
+                elif args.model == 'convkb':
+                    y_pred_neg = model(true_head, true_rel, tail_neg)
             y_pred_neg = y_pred_neg.view(negative_sample.shape)
 
             y_pred_pos = y_pred_pos.view(-1, 1)
@@ -255,17 +282,17 @@ def main():
         train_true_head[(relation.item(), tail.item())].append(head.item())
         train_true_tail[(head.item(), relation.item())].append(tail.item())
 
-    dataset_head = torch.cat((train_triples['head'], valid_triples['head'], test_triples['head']))
-    dataset_tail = torch.cat((train_triples['tail'], valid_triples['tail'], test_triples['tail']))
-    dataset_head_type = np.concatenate((train_triples['head_type'], valid_triples['head_type'], test_triples['head_type']))
-    dataset_tail_type = np.concatenate((train_triples['tail_type'], valid_triples['tail_type'], test_triples['tail_type']))
+    # dataset_head = torch.cat((train_triples['head'], valid_triples['head'], test_triples['head']))
+    # dataset_tail = torch.cat((train_triples['tail'], valid_triples['tail'], test_triples['tail']))
+    # dataset_head_type = np.concatenate((train_triples['head_type'], valid_triples['head_type'], test_triples['head_type']))
+    # dataset_tail_type = np.concatenate((train_triples['tail_type'], valid_triples['tail_type'], test_triples['tail_type']))
 
-    for i in tqdm(range(len(dataset_head))):
-        dataset_head[i] = dataset_head[i] + entity_dict[dataset_head_type[i]][0]
-        dataset_tail[i] = dataset_tail[i] + entity_dict[dataset_tail_type[i]][0]
+    # for i in tqdm(range(len(dataset_head))):
+    #     dataset_head[i] = dataset_head[i] + entity_dict[dataset_head_type[i]][0]
+    #     dataset_tail[i] = dataset_tail[i] + entity_dict[dataset_tail_type[i]][0]
 
-    edge_index = torch.stack((dataset_head, dataset_tail)).to(device)
-    edge_type = torch.cat((train_triples['relation'], valid_triples['relation'], test_triples['relation'])).to(device)
+    # edge_index = torch.stack((dataset_head, dataset_tail)).to(device)
+    # edge_type = torch.cat((train_triples['relation'], valid_triples['relation'], test_triples['relation'])).to(device)
     
     random_sampling = False
     # validation loader
@@ -360,9 +387,12 @@ def main():
             )
         
         # Set training configuration
-        model = ConvE(
-            num_nodes = nentity, num_relations = nrelation, hidden_dim = args.hidden_dim
-            ).to(device)
+        if args.model == 'conve':
+            model = ConvE(
+                num_nodes = nentity, num_relations = nrelation, hidden_dim = args.hidden_dim
+                ).to(device)
+        elif args.model == 'convkb':
+            model = ConvKB(nentity = nentity, nrelation = nrelation, hidden_dim = args.hiidden_dim).to(device)
         
         optimizer = optim.Adam(
             filter(lambda p: p.requires_grad, model.parameters()), 
@@ -384,11 +414,11 @@ def main():
                 train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
                 print(f'Train {l}: {train_losses[l]:.5f}')
             
-            # wandb.log({
-            #     'Train positive sample loss': train_losses['positive_sample_loss'],
-            #     'Train negative sample loss': train_losses['negative_sample_loss'],
-            #     'Train loss': train_losses['loss']
-            # })
+            wandb.log({
+                'Train positive sample loss': train_losses['positive_sample_loss'],
+                'Train negative sample loss': train_losses['negative_sample_loss'],
+                'Train loss': train_losses['loss']
+            })
             
             if epoch % 10 == 0:
                 valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
@@ -414,16 +444,16 @@ def main():
                 print(f"Test hits@3': {test_metrics['hits@3']:.5f}")
                 print(f"Test hits@10': {test_metrics['hits@10']:.5f}")
                 
-                # wandb.log({
-                #     'Valid MRR': valid_metrics['mrr'],
-                #     'Valid hits@1': valid_metrics['hits@1'],
-                #     'Valid hits@3': valid_metrics['hits@3'],
-                #     'Valid hits@10': valid_metrics['hits@10'],
-                #     'Test MRR': test_metrics['mrr'],
-                #     'Test hits@1': test_metrics['hits@1'],
-                #     'Test hits@3': test_metrics['hits@3'],
-                #     'Test hits@10': test_metrics['hits@10']
-                # })
+                wandb.log({
+                    'Valid MRR': valid_metrics['mrr'],
+                    'Valid hits@1': valid_metrics['hits@1'],
+                    'Valid hits@3': valid_metrics['hits@3'],
+                    'Valid hits@10': valid_metrics['hits@10'],
+                    'Test MRR': test_metrics['mrr'],
+                    'Test hits@1': test_metrics['hits@1'],
+                    'Test hits@3': test_metrics['hits@3'],
+                    'Test hits@10': test_metrics['hits@10']
+                })
 
         check_points = {'seed': seed,
                         'model_state_dict': model.state_dict(),
@@ -437,4 +467,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-# wandb.run.finish()
+wandb.run.finish()
