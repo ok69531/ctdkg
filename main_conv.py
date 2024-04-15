@@ -402,7 +402,7 @@ def main():
         set_seed(seed)
         print(f'====================== run: {seed} ======================')
 
-        if args.negative_loss:
+        if (args.negative_loss) or (args.model == 'convkb'):
             train_dataloader_head = DataLoader(
                 TrainDataset(train_triples, nentity, nrelation, 
                     args.negative_sample_size, 'head-batch',
