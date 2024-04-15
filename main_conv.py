@@ -392,7 +392,7 @@ def main():
                 num_nodes = nentity, num_relations = nrelation, hidden_dim = args.hidden_dim
                 ).to(device)
         elif args.model == 'convkb':
-            model = ConvKB(nentity = nentity, nrelation = nrelation, hidden_dim = args.hiidden_dim).to(device)
+            model = ConvKB(nentity = nentity, nrelation = nrelation, hidden_dim = args.hidden_dim).to(device)
         
         optimizer = optim.Adam(
             filter(lambda p: p.requires_grad, model.parameters()), 
