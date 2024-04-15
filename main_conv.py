@@ -36,8 +36,9 @@ wandb.init(project = f'ctdkg', entity = 'soyoung')
 wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 wandb.run.save()
 
+criterion = nn.BCEWithLogitsLoss()
 
-def train(model, train_dataloader_head, optimizer, scheduler, args, device):
+def train_conve(model, criterion, train_dataloader_head, optimizer, scheduler, args, device):
     model.train()
     epoch_logs = []
     y_multihot = torch.LongTensor(args.batch_size, args.nentity)
@@ -54,7 +55,7 @@ def train(model, train_dataloader_head, optimizer, scheduler, args, device):
         targets = y_smooth.to(device)
 
         output = model(s, r)
-        loss = nn.BCELoss()(output, targets)
+        loss = criterion(output, targets)
         loss.backward()
         optimizer.step()
         
@@ -72,7 +73,57 @@ def train(model, train_dataloader_head, optimizer, scheduler, args, device):
     return epoch_logs
 
 
-def negative_train(model, device,  head_loader, tail_loader, optimizer, scheduler, args):
+def train_convkb(model, criterion, device, head_loader, tail_loader, optimizer, scheduler, args):
+    model.train()
+    
+    epoch_logs = []
+    for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
+        for b in (b1, b2):
+            optimizer.zero_grad()
+            
+            positive_sample, negative_sample, subsampling_weight, mode = b
+            positive_sample = positive_sample.to(device)
+            negative_sample = negative_sample.to(device)
+            subsampling_weight = subsampling_weight.to(device)
+            
+            h, r, t = positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2]
+            positive_score = model(h, r, t)
+            
+            if mode == 'head-batch':
+                head_neg = negative_sample.view(-1)
+                true_tail = positive_sample[:, 2].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                negative_score = model(head_neg, true_rel, true_tail)
+            elif mode == 'tail-batch':
+                tail_neg = negative_sample.view(-1)
+                true_head = positive_sample[:, 0].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                negative_score = model(true_head, true_rel, tail_neg)
+
+            score = torch.cat([positive_score, negative_score])
+            label = torch.cat([torch.ones_like(positive_score), torch.zeros_like(negative_score)]).to(device)
+            loss = criterion(score, label)
+            
+            loss.backward()
+            optimizer.step()
+
+            log = {
+                'loss': loss.item()
+            }
+            
+            epoch_logs.append(log)
+        
+        if i % 1000 == 0:
+            logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+            logging.info(log)
+     
+    scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
+    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+    
+    return epoch_logs        
+
+
+def negative_train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
     model.train()
     
     epoch_logs = []
@@ -407,18 +458,26 @@ def main():
             if args.negative_loss:
                 train_out = negative_train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
             else:
-                train_out = train(model, train_dataloader_head, optimizer, scheduler, args, device)
+                if args.model == 'conve':
+                    train_out = train_conve(model, criterion, train_dataloader_head, optimizer, scheduler, args, device)
+                elif args.model == 'convkb':
+                    train_out = train_convkb(model, criterion, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
             
             train_losses = {}
             for l in train_out[0].keys():
                 train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
                 print(f'Train {l}: {train_losses[l]:.5f}')
             
-            wandb.log({
-                'Train positive sample loss': train_losses['positive_sample_loss'],
-                'Train negative sample loss': train_losses['negative_sample_loss'],
-                'Train loss': train_losses['loss']
-            })
+            if args.negative_loss:
+                wandb.log({
+                    'Train positive sample loss': train_losses['positive_sample_loss'],
+                    'Train negative sample loss': train_losses['negative_sample_loss'],
+                    'Train loss': train_losses['loss']
+                })
+            else:
+                wandb.log({
+                    'Train loss': train_losses['loss']
+                })
             
             if epoch % 10 == 0:
                 valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)

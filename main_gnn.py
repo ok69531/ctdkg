@@ -8,6 +8,7 @@ from tqdm.auto import tqdm
 from collections import defaultdict
 
 import torch
+from torch import nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from torch import optim
@@ -37,8 +38,72 @@ wandb.init(project = f'ctdkg', entity = 'soyoung')
 wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 wandb.run.save()
 
+criterion = nn.BCEWithLogitsLoss()
 
-def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimizer, scheduler, args):
+def train(model, criterion, device, edge_index, edge_type, head_loader, tail_loader, optimizer, scheduler, args):
+    model.train()
+    
+    epoch_logs = []
+    for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
+        for b in (b1, b2):
+            optimizer.zero_grad()
+            
+            positive_sample, negative_sample, subsampling_weight, mode = b
+            positive_sample = positive_sample.to(device)
+            negative_sample = negative_sample.to(device)
+            subsampling_weight = subsampling_weight.to(device)
+            
+            if args.model == 'rgcn':
+                node_embedding = model.encode(edge_index, edge_type)
+                positive_score = model.decode(node_embedding[positive_sample[:, 0]], positive_sample[:, 1], node_embedding[positive_sample[:, 2]], mode)
+            elif args.model == 'compgcn':
+                h, r, t = model(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+                positive_score = h * r * t
+                positive_score = torch.sum(positive_score, dim = 1)
+
+            if mode == 'head-batch':
+                head_neg = negative_sample.view(-1)
+                true_tail = positive_sample[:, 2].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                if args.model == 'rgcn':
+                    negative_score = model.decode(node_embedding[head_neg], true_rel, node_embedding[true_tail], mode)
+                elif args.model == 'compgcn':
+                    h, r, t = model(head_neg, true_rel, true_tail)
+                    negative_score = h * r * t
+                    negative_score = torch.sum(negative_score, dim = 1)
+            elif mode == 'tail-batch':
+                tail_neg = negative_sample.view(-1)
+                true_head = positive_sample[:, 0].repeat_interleave(args.negative_sample_size)
+                true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
+                if args.model == 'rgcn':
+                    negative_score = model.decode(node_embedding[true_head], true_rel, node_embedding[tail_neg], mode)
+                elif args.model == 'compgcn':
+                    h, r, t = model(true_head, true_rel, tail_neg)
+                    negative_score = h * r * t
+                    negative_score = torch.sum(negative_score, dim = 1)
+
+            score = torch.cat([positive_score, negative_score])
+            label = torch.cat([torch.ones_like(positive_score), torch.zeros_like(negative_score)]).to(device)
+            loss = criterion(score, label)
+            loss.backward()
+            optimizer.step()
+
+            log = {
+                'loss': loss.item()
+            }
+            
+            epoch_logs.append(log)
+        
+        if i % 1000 == 0:
+            logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+            logging.info(log)
+     
+    scheduler.step()
+    
+    return epoch_logs
+
+
+def ns_train(model, device, edge_index, edge_type, head_loader, tail_loader, optimizer, scheduler, args):
     model.train()
     
     epoch_logs = []
@@ -115,8 +180,6 @@ def train(model, device, edge_index, edge_type, head_loader, tail_loader, optimi
             logging.info(log)
      
     scheduler.step()
-    # scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
-    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     
     return epoch_logs
 
@@ -347,7 +410,10 @@ def main():
     for epoch in range(1, args.num_epoch + 1):
         print(f"=== Epoch: {epoch}")
         
-        train_out = train(model, device, edge_index, edge_type, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
+        if args.negative_loss:
+            train_out = ns_train(model, device, edge_index, edge_type, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
+        else:
+            train_out = train(model, criterion, device, edge_index, edge_type, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
         
         train_losses = {}
         for l in train_out[0].keys():

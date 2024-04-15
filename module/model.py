@@ -372,7 +372,7 @@ class ConvE(nn.Module):
 
         scores = out.mm(self.embed_e.weight.t())
 
-        return torch.sigmoid(scores)
+        return scores
     
     def valid(self, s, r, o):
         embed_s = self.embed_e(s)
