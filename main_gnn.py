@@ -420,12 +420,17 @@ def main():
             train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
             print(f'Train {l}: {train_losses[l]:.5f}')
         
-        wandb.log({
-            'Train positive sample loss': train_losses['positive_sample_loss'],
-            'Train negative sample loss': train_losses['negative_sample_loss'],
-            'Train loss': train_losses['loss']
-        })
-        
+        if args.negative_loss:
+            wandb.log({
+                'Train positive sample loss': train_losses['positive_sample_loss'],
+                'Train negative sample loss': train_losses['negative_sample_loss'],
+                'Train loss': train_losses['loss']
+            })
+        else:
+            wandb.log({
+                'Train loss': train_losses['loss']
+            })
+            
         if epoch % 10 == 0:
             valid_logs = evaluate(model, edge_index, edge_type, valid_dataloader_head, valid_dataloader_tail, args)
             valid_metrics = {}

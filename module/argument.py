@@ -35,7 +35,6 @@ def parse_args(args=None):
     parser.add_argument('-nl', '--negative_loss', action='store_true', 
                         help='use negative sampling loss to train ConvE')
     
-    parser.add_argument('--num_runs', default = 10, type = int)
     parser.add_argument('-lr', '--learning_rate', default=0.0001, type=float)
     parser.add_argument('-nw', '--num_workers', default=1, type = int)
     parser.add_argument('-init', '--init_checkpoint', default=None, type=str)
