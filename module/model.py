@@ -390,7 +390,7 @@ class ConvE(nn.Module):
 
 # --------------------------------- ConvKB --------------------------------- #
 class ConvKB(nn.Module):
-    def __init__(self, nentity, nrelation, hidden_dim, out_channels=64, kernel_size=1, dropout=0.3):
+    def __init__(self, nentity, nrelation, hidden_dim, out_channels=32, kernel_size=1, dropout=0.3):
         super(ConvKB, self).__init__()
         
         self.hidden_dim = hidden_dim
