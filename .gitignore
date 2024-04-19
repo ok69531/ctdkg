@@ -13,8 +13,9 @@ SLURM*
 *.sh
 wandb
 wandb_key.txt
+dataset
 raw
 processed
 compressed
 best_val_log
-tmp.py
+
