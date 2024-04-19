@@ -1,7 +1,104 @@
+import os
+import gzip
+import shutil
+import requests
 import itertools
 
 import torch
 from torch.utils.data import Dataset
+
+
+class LinkPredDataset(object):
+    def __init__(self, name, root = 'dataset'):
+        '''
+            - name (str): name of the dataset
+            - root (str): root directory to store the dataset folder
+        '''
+        
+        self.name = name
+        self.root = os.path.join(root, self.name)
+        
+        self.avail_data = ['cd', 'cg-v1', 'cg-v2', 'gd', 'cgd', 'cgpd', 'ctd']
+        if self.name not in self.avail_data:
+            err_msg = f'Invalid dataset name: {self.name}\n'
+            err_msg += 'Available datasets are as follows:\n'
+            err_msg += '\n'.join(self.namea)
+            raise ValueError(err_msg)
+        
+        self.download()
+    
+    def download(self):
+        processed_dir = os.path.join(self.root, 'processed')
+        pre_processed_file_path = os.path.join(processed_dir, self.name+'.pt')
+        
+        if os.path.exists(pre_processed_file_path):
+            self.graph = torch.load(pre_processed_file_path)
+        
+        else:
+            print('>>> Making directory ...')
+            os.makedirs(processed_dir)
+            
+            # download full graph
+            print(f'>>> Downloading {self.name.upper()} graph ...')
+            data_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-v1.0/{self.name}.pt'
+            response = requests.get(data_url)
+            
+            with open(os.path.join(processed_dir, self.name+'.pt'), 'wb') as f:
+                f.write(response.content)
+            print(f'    {self.name.upper()} graph is downloaded.')
+            
+            # download train/validation/test data
+            print(f'>>> Downloading splitted {self.name.upper()} graph ...')
+            train_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-train-v1.0/train_{self.name}.gz'
+            valid_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-valid-v1.0/valid_{self.name}.gz'
+            test_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-test-v1.0/test_{self.name}.gz'
+            
+            for url in [train_url, valid_url, test_url]:
+                gz_file_name = url.split('/')[-1]
+                pt_file_name = gz_file_name.split('.')[0]+'.pt'
+                
+                response = requests.get(url)
+                
+                with open(os.path.join(processed_dir, gz_file_name), 'wb') as f:
+                    f.write(response.content)
+                
+                with gzip.open(os.path.join(processed_dir, gz_file_name), 'rb') as raw:
+                    with open(os.path.join(self.root, pt_file_name), 'wb') as out:
+                        shutil.copyfileobj(raw, out)
+            print(f'    Training/Validation/Test graphs were downloaded.')
+            
+            # download mapping of entyties and relations
+            print(f'>>> Downloading the mapping of entities and relations ...')
+            map_types = ['rel_type', 'chem', 'gene', 'dis', 'pheno', 'path', 'go']
+            for map_type in map_types:
+                map_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-v1.0/{map_type}_map'
+                response = requests.get(map_url)
+                
+                if response.status_code == 200:
+                    with open(os.path.join(processed_dir, map_type+'_map'), 'wb') as f:
+                        f.write(response.content)
+            print(f'    Mapping was downloaded.')
+            print(f'>>> All elements were downloaded.')
+            
+            self.graph = torch.load(os.path.join(processed_dir, self.name+'.pt'))
+    
+    def get_edge_split(self):
+        train_data = torch.load(os.path.join(self.root, 'train_'+self.name+'.pt'))
+        valid_data = torch.load(os.path.join(self.root, 'valid_'+self.name+'.pt'))
+        test_data = torch.load(os.path.join(self.root, 'test_'+self.name+'.pt'))
+
+        train_triplet = make_triplet(train_data, is_train = True)
+        valid_triplet = make_triplet(valid_data)
+        test_triplet = make_triplet(test_data)
+
+        return train_triplet, valid_triplet, test_triplet
+    
+    def __getitem__(self, idx):
+        assert idx == 0, 'This dataset has only one graph'
+        return self.graph
+    
+    def __len__(self):
+        return 1
 
 
 def make_triplet(data, is_train = False):
@@ -44,28 +141,6 @@ def make_triplet(data, is_train = False):
         }
     
     return triples
-
-
-def load_data(data_type):
-    if 'cg' in data_type:
-        data_type, ver = data_type.split('-')
-        train_path = f'dataset/processed/{data_type}/{ver}/train_{data_type}-{ver}.pt'
-        valid_path = f'dataset/processed/{data_type}/{ver}/valid_{data_type}-{ver}.pt'
-        test_path = f'dataset/processed/{data_type}/{ver}/test_{data_type}-{ver}.pt'
-    else:
-        train_path = f'dataset/processed/{data_type}/train_{data_type}.pt'
-        valid_path = f'dataset/processed/{data_type}/valid_{data_type}.pt'
-        test_path = f'dataset/processed/{data_type}/test_{data_type}.pt'
-                
-    train_data = torch.load(train_path)
-    valid_data = torch.load(valid_path)
-    test_data = torch.load(test_path)
-    
-    train_triplet = make_triplet(train_data, is_train = True)
-    valid_triplet = make_triplet(valid_data)
-    test_triplet = make_triplet(test_data)
-    
-    return train_data, train_triplet, valid_triplet, test_triplet
 
 
 class TrainDataset(Dataset):

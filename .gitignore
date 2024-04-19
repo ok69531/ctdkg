@@ -11,8 +11,9 @@ __pycache__/
 .DS_Store
 SLURM*
 *.sh
-raw
 wandb
 wandb_key.txt
+raw
 processed
+compressed
 best_val_log

@@ -20,7 +20,7 @@ from torch_geometric.nn import GAE
 from module.model import GNNEncoder, DistMultDecoder, CompGCNBase
 from module.set_seed import set_seed
 from module.argument import parse_args
-from module.dataloader import load_data, TrainDataset, TestDataset
+from module.dataset import LinkPredDataset, TrainDataset, TestDataset
 
 
 try:
@@ -262,15 +262,17 @@ def main():
     else:
         os.makedirs(save_path)
     
-    train_data, train_triples, valid_triples, test_triples = load_data(data_type = args.dataset)
+    dataset = LinkPredDataset(args.dataset)
+    data = dataset[0]
+    train_triples, valid_triples, test_triples = dataset.get_edge_split()
     
-    nrelation = train_data.num_relations
+    nrelation = data.num_relations
     entity_dict = dict()
     cur_idx = 0
-    for key in train_data['num_nodes_dict']:
-        entity_dict[key] = (cur_idx, cur_idx + train_data['num_nodes_dict'][key])
-        cur_idx += train_data['num_nodes_dict'][key]
-    nentity = sum(train_data['num_nodes_dict'].values())
+    for key in data['num_nodes_dict']:
+        entity_dict[key] = (cur_idx, cur_idx + data['num_nodes_dict'][key])
+        cur_idx += data['num_nodes_dict'][key]
+    nentity = sum(data['num_nodes_dict'].values())
 
     args.nentity = nentity
     args.nrelation = nrelation
