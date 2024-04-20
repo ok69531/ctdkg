@@ -57,7 +57,7 @@ valid_dataloader_head = DataLoader(
     collate_fn = TestDataset.collate_fn
 )
 ```
-The head loader means that head entities of true triples were contaminated $(h', r, t)$. If you want to make tail loader than substitute 'head-batch' to 'tail-batch'.
+The head loader means that head entities of true triples were contaminated $(h', r, t)$. If you want to make a tail loader, substitute 'head-batch' with 'tail-batch.'
 
 ### Training & Evaluation
 ```python
