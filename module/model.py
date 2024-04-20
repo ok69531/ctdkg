@@ -1,5 +1,8 @@
-# https://github.com/DeepGraphLearning/KnowledgeGraphEmbedding
-# https://github.com/malllabiisc/CompGCN
+# https://github.com/snap-stanford/ogb/tree/master
+# RoataE: https://github.com/DeepGraphLearning/KnowledgeGraphEmbedding
+# ConvE: https://github.com/TimDettmers/ConvE
+# ConvKB: https://github.com/daiquocnguyen/ConvKB
+# CompGCN: https://github.com/malllabiisc/CompGCN
 
 import torch
 import torch.nn as nn
