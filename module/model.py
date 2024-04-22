@@ -72,7 +72,7 @@ class KGEModel(nn.Module):
             raise ValueError('ComplEx should use --double_entity_embedding and --num_relation_embedding 2')
         
         if model_name == 'HAKE' and (not double_entity_embedding or num_relation_embedding != 3):
-            raise ValueError('ComplEx should use --double_entity_embedding and --num_relation_embedding 3')
+            raise ValueError('HAKE should use --double_entity_embedding and --num_relation_embedding 3')
 
     def forward(self, sample, mode='single'):
         '''
