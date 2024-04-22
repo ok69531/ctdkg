@@ -288,7 +288,7 @@ def main():
 
     train_count, train_true_head, train_true_tail = defaultdict(lambda: 4), defaultdict(list), defaultdict(list)
     for i in tqdm(range(len(train_triples['head']))):
-        head, relation, tail = train_triples['head'][i], train_triples['relation'][i], train_triples['tail'][i]
+        head, relation, tail = train_triples['head'][i].item(), train_triples['relation'][i].item(), train_triples['tail'][i].item()
         head_type, tail_type = train_triples['head_type'][i], train_triples['tail_type'][i]
         train_count[(head, relation, head_type)] += 1
         train_count[(tail, -relation-1, tail_type)] += 1
