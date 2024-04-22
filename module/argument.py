@@ -23,7 +23,7 @@ def parse_args(args=None):
     parser.add_argument('-nr', '--num_relation_embedding', default=1, type=int)
     
     parser.add_argument('-n', '--negative_sample_size', default=128, type=int)
-    parser.add_argument('-d', '--hidden_dim', default=300, type=int)
+    parser.add_argument('-d', '--hidden_dim', default=100, type=int)
     parser.add_argument('-g', '--gamma', default=2.0, type=float)
     parser.add_argument('-adv', '--negative_adversarial_sampling', default=True)
     parser.add_argument('-a', '--adversarial_temperature', default=1.0, type=float)
