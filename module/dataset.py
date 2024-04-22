@@ -35,6 +35,7 @@ class LinkPredDataset(object):
             self.graph = torch.load(pre_processed_file_path)
         
         else:
+            print('>>> This process will be time-consuming ... ')
             print('>>> Making directory ...')
             os.makedirs(processed_dir)
             
