@@ -335,8 +335,8 @@ def main():
         head_type, tail_type = train_triples['head_type'][i], train_triples['tail_type'][i]
         train_count[(head, relation, head_type)] += 1
         train_count[(tail, -relation-1, tail_type)] += 1
-        train_true_head[(relation.item(), tail.item())].append(head.item())
-        train_true_tail[(head.item(), relation.item())].append(tail.item())
+        train_true_head[(relation, tail)].append(head)
+        train_true_tail[(head, relation)].append(tail)
     
     random_sampling = False
     # validation loader
