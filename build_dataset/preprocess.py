@@ -836,7 +836,7 @@ def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
 
     edge_type_map = {
         'dis_related_path': 0, 
-        'path_related_dis': 0, 
+        'path_related_dis': 1, 
     }
 
     # mapping the chemical and disease id
