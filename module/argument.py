@@ -17,6 +17,7 @@ def parse_args(args=None):
     parser.add_argument('--seed', type=int, default=0)
     
     parser.add_argument('--dataset', type=str, default='cd', help='dataset name, default to cd')
+    parser.add_argument('--train_frac', type=float, default=0.1, help='fraction of training data for large scale dataset')
     parser.add_argument('--model', default='TransE', type=str, help='TransE, RotatE, DistMult, ComplEx, conve, rgcn, compgcn')
     parser.add_argument('-de', '--double_entity_embedding', action='store_true')
     # parser.add_argument('-dr', '--double_relation_embedding', action='store_true')
