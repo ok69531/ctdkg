@@ -485,6 +485,13 @@ def main():
                 model_params = deepcopy(model.state_dict())
                 optim_dict = deepcopy(optimizer.state_dict())
                 scheduler_dict = deepcopy(scheduler.state_dict())
+                stopupdate = 0
+                
+            else:
+                stopupdate += 1
+                if stopupdate > 3:
+                    print(f'early stop at eopch {epoch}')
+                    break
     
     wandb.log(best_val_result)
 
