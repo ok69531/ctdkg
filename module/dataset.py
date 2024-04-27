@@ -161,7 +161,7 @@ class TrainDataset(Dataset):
         return self.len
     
     def __getitem__(self, idx):
-        head, relation, tail = self.triples['head'][idx], self.triples['relation'][idx], self.triples['tail'][idx]
+        head, relation, tail = self.triples['head'][idx].item(), self.triples['relation'][idx].item(), self.triples['tail'][idx].item()
         head_type, tail_type = self.triples['head_type'][idx], self.triples['tail_type'][idx]
         positive_sample = [head + self.entity_dict[head_type][0], relation, tail + self.entity_dict[tail_type][0]]
 
