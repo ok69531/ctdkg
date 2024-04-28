@@ -1,11 +1,14 @@
 import os
 import gzip
+import logging
 import shutil
 import requests
 import itertools
 
 import torch
 from torch.utils.data import Dataset
+
+logging.basicConfig(format='', level=logging.INFO)
 
 
 class LinkPredDataset(object):
@@ -35,21 +38,21 @@ class LinkPredDataset(object):
             self.graph = torch.load(pre_processed_file_path)
         
         else:
-            print('>>> This process will be time-consuming ... ')
-            print('>>> Making directory ...')
+            logging.info('>>> This process will be time-consuming ... ')
+            logging.info('>>> Making directory ...')
             os.makedirs(processed_dir)
             
             # download full graph
-            print(f'>>> Downloading {self.name.upper()} graph ...')
+            logging.info(f'>>> Downloading {self.name.upper()} graph ...')
             data_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-v1.0/{self.name}.pt'
             response = requests.get(data_url)
             
             with open(os.path.join(processed_dir, self.name+'.pt'), 'wb') as f:
                 f.write(response.content)
-            print(f'    {self.name.upper()} graph is downloaded.')
+            logging.info(f'    {self.name.upper()} graph is downloaded.')
             
             # download train/validation/test data
-            print(f'>>> Downloading splitted {self.name.upper()} graph ...')
+            logging.info(f'>>> Downloading splitted {self.name.upper()} graph ...')
             train_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-train-v1.0/train_{self.name}.gz'
             valid_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-valid-v1.0/valid_{self.name}.gz'
             test_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-test-v1.0/test_{self.name}.gz'
@@ -66,10 +69,10 @@ class LinkPredDataset(object):
                 with gzip.open(os.path.join(processed_dir, gz_file_name), 'rb') as raw:
                     with open(os.path.join(self.root, pt_file_name), 'wb') as out:
                         shutil.copyfileobj(raw, out)
-            print(f'    Training/Validation/Test graphs were downloaded.')
+            logging.info(f'    Training/Validation/Test graphs were downloaded.')
             
             # download mapping of entyties and relations
-            print(f'>>> Downloading the mapping of entities and relations ...')
+            logging.info(f'>>> Downloading the mapping of entities and relations ...')
             map_types = ['rel_type', 'chem', 'gene', 'dis', 'pheno', 'path', 'go']
             for map_type in map_types:
                 map_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-v1.0/{map_type}_map'
@@ -78,8 +81,8 @@ class LinkPredDataset(object):
                 if response.status_code == 200:
                     with open(os.path.join(processed_dir, map_type+'_map'), 'wb') as f:
                         f.write(response.content)
-            print(f'    Mapping was downloaded.')
-            print(f'>>> All elements were downloaded.')
+            logging.info(f'    Mappings were downloaded.')
+            logging.info(f'>>> All elements were downloaded.')
             
             self.graph = torch.load(os.path.join(processed_dir, self.name+'.pt'))
     
