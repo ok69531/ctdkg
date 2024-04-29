@@ -129,8 +129,14 @@ def negative_sampling(data, all_true_head, all_true_tail, num_negative = 500):
     head_negative = torch.stack(head_negative)
     tail_negative = torch.stack(tail_negative)
     
-    data['head_neg'] = {key: head_negative[:v.shape[1]] for key, v in data.edge_index_dict.items()}
-    data['tail_neg'] = {key: tail_negative[:v.shape[1]] for key, v in data.edge_index_dict.items()}
+    neg_idx_dict = dict()
+    cur_idx = 0
+    for key in data.edge_index_dict:
+        neg_idx_dict[key] = (cur_idx, cur_idx + data.edge_index_dict[key].shape[1])
+        cur_idx += data.edge_index_dict[key].shape[1]
+    
+    data['head_neg'] = {key: head_negative[v[0]:v[1]] for key, v in neg_idx_dict.items()}
+    data['tail_neg'] = {key: tail_negative[v[0]:v[1]] for key, v in neg_idx_dict.items()}
     
     return data
 
@@ -1102,7 +1108,7 @@ def build_cgpd_graph(file_path = 'processed', save_path = 'processed/cgpd'):
     # needs: cg, cpheno, cd, gpheno, gd
     
     # chemical
-    cg_data = torch.load(f'{file_path}/cg/v1/cg.pt')
+    cg_data = torch.load(f'{file_path}/cg/v1/cg-v1.pt')
     cg_chem_map = torch.load(f'{file_path}/cg/v1/chem_map')
     cg_gene_map = torch.load(f'{file_path}/cg/v1/gene_map')
     
@@ -1160,7 +1166,7 @@ def build_cgpd_graph(file_path = 'processed', save_path = 'processed/cgpd'):
             old_hmap = cg_chem_map; old_tmap = cg_gene_map
             new_hmap = chem_map; new_tmap = gene_map
         elif (h=='chemical') & (t=='phenotype'): 
-            old_hmap = cpheno_chem_map;   old_tmap=cpheno_pheno_map
+            old_hmap = cpheno_chem_map; old_tmap=cpheno_pheno_map
             new_hmap = chem_map; new_tmap = pheno_map
         elif (h=='chemical') & (t=='disease'): 
             old_hmap = cd_chem_map; old_tmap = cd_dis_map
@@ -1470,5 +1476,5 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 # build_benchmarks('dpath', 0.9, 0.05)
 # build_benchmarks('dgo', 0.9, 0.05)
 # build_benchmarks('cgd', 0.98, 0.01)
-# build_benchmarks('cgpd', 0.98, 0.01)
+build_benchmarks('cgpd', 0.98, 0.01)
 # build_benchmarks('ctd', 0.98, 0.01)
