@@ -364,20 +364,20 @@ class ConvE(nn.Module):
         xavier_normal_(self.embed_e.weight.data)
         xavier_normal_(self.embed_r.weight.data)
 
-    def forward(self, s, r):
-        embed_s = self.embed_e(s)
-        embed_r = self.embed_r(r)
+    # def forward(self, s, r):
+    #     embed_s = self.embed_e(s)
+    #     embed_r = self.embed_r(r)
 
-        embed_s = embed_s.view(-1, self.embedding_size_w, self.embedding_size_h)
-        embed_r = embed_r.view(-1, self.embedding_size_w, self.embedding_size_h)
-        conv_input = torch.cat([embed_s, embed_r], dim=1).unsqueeze(1)
-        out = self.conv_e(conv_input)
+    #     embed_s = embed_s.view(-1, self.embedding_size_w, self.embedding_size_h)
+    #     embed_r = embed_r.view(-1, self.embedding_size_w, self.embedding_size_h)
+    #     conv_input = torch.cat([embed_s, embed_r], dim=1).unsqueeze(1)
+    #     out = self.conv_e(conv_input)
 
-        scores = out.mm(self.embed_e.weight.t())
+    #     scores = out.mm(self.embed_e.weight.t())
 
-        return scores
+    #     return scores
     
-    def valid(self, s, r, o):
+    def forward(self, s, r, o):
         embed_s = self.embed_e(s)
         embed_o = self.embed_e(o)
         embed_r = self.embed_r(r)

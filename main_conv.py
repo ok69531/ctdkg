@@ -39,44 +39,44 @@ wandb.run.save()
 
 criterion = nn.BCEWithLogitsLoss()
 
-def train_conve(model, criterion, train_dataloader_head, optimizer, scheduler, args, device):
-    model.train()
-    epoch_logs = []
-    y_multihot = torch.LongTensor(args.batch_size, args.nentity)
-    for i, (s, r, os) in enumerate(train_dataloader_head):
-        s, r = s.to(device), r.to(device)
+# def train_conve(model, criterion, train_dataloader_head, optimizer, scheduler, args, device):
+#     model.train()
+#     epoch_logs = []
+#     y_multihot = torch.LongTensor(args.batch_size, args.nentity)
+#     for i, (s, r, os) in enumerate(train_dataloader_head):
+#         s, r = s.to(device), r.to(device)
 
-        optimizer.zero_grad()
-        if s.size()[0] != args.batch_size:
-            y_multihot = torch.LongTensor(s.size()[0], args.nentity)
+#         optimizer.zero_grad()
+#         if s.size()[0] != args.batch_size:
+#             y_multihot = torch.LongTensor(s.size()[0], args.nentity)
 
-        y_multihot.zero_()
-        y_multihot = y_multihot.scatter_(1, os, 1)
-        y_smooth = (1 - 0.1) * y_multihot.float() + 0.1 / args.nentity
-        targets = y_smooth.to(device)
+#         y_multihot.zero_()
+#         y_multihot = y_multihot.scatter_(1, os, 1)
+#         y_smooth = (1 - 0.1) * y_multihot.float() + 0.1 / args.nentity
+#         targets = y_smooth.to(device)
 
-        output = model(s, r)
-        loss = criterion(output, targets)
-        loss.backward()
-        optimizer.step()
+#         output = model(s, r)
+#         loss = criterion(output, targets)
+#         loss.backward()
+#         optimizer.step()
         
-        log = {
-                'loss': loss.item()
-        }
+#         log = {
+#                 'loss': loss.item()
+#         }
         
-        epoch_logs.append(log)
+#         epoch_logs.append(log)
         
-        if i % 1000 == 0:
-            logging.info('Training the model... (%d/%d)' % (i, int(len(train_dataloader_head))))
-            logging.info(log)
+#         if i % 1000 == 0:
+#             logging.info('Training the model... (%d/%d)' % (i, int(len(train_dataloader_head))))
+#             logging.info(log)
         
-    scheduler.step()
-    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+#     scheduler.step()
+#     # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     
-    return epoch_logs
+#     return epoch_logs
 
 
-def train_convkb(model, criterion, device, head_loader, tail_loader, optimizer, scheduler, args):
+def train(model, criterion, device, head_loader, tail_loader, optimizer, scheduler, args):
     model.train()
     
     epoch_logs = []
@@ -140,32 +140,32 @@ def negative_train(model, device, head_loader, tail_loader, optimizer, scheduler
             negative_sample = negative_sample.to(device)
             subsampling_weight = subsampling_weight.to(device)
             
-            if args.model == 'conve':
-                positive_score = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
-                positive_score = F.logsigmoid(positive_score)
-            elif args.model == 'convkb':
-                h, r, t = positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2]
-                positive_score = model(h, r, t)
-                positive_score = F.logsigmoid(positive_score)
+            # if args.model == 'conve':
+            #     positive_score = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+            #     positive_score = F.logsigmoid(positive_score)
+            # elif args.model == 'convkb':
+            h, r, t = positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2]
+            positive_score = model(h, r, t)
+            positive_score = F.logsigmoid(positive_score)
 
             
             if mode == 'head-batch':
                 head_neg = negative_sample.view(-1)
                 true_tail = positive_sample[:, 2].repeat_interleave(args.negative_sample_size)
                 true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
-                if args.model == 'conve':
-                    negative_score = model.valid(head_neg, true_rel, true_tail)
-                elif args.model == 'convkb':
-                    negative_score = model(head_neg, true_rel, true_tail)
+                # if args.model == 'conve':
+                #     negative_score = model.valid(head_neg, true_rel, true_tail)
+                # elif args.model == 'convkb':
+                negative_score = model(head_neg, true_rel, true_tail)
                     
             elif mode == 'tail-batch':
                 tail_neg = negative_sample.view(-1)
                 true_head = positive_sample[:, 0].repeat_interleave(args.negative_sample_size)
                 true_rel = positive_sample[:, 1].repeat_interleave(args.negative_sample_size)
-                if args.model == 'conve':
-                    negative_score = model.valid(true_head, true_rel, tail_neg)
-                elif args.model == 'convkb':
-                    negative_score = model(true_head, true_rel, tail_neg)
+                # if args.model == 'conve':
+                #     negative_score = model.valid(true_head, true_rel, tail_neg)
+                # elif args.model == 'convkb':
+                negative_score = model(true_head, true_rel, tail_neg)
 
             if args.negative_adversarial_sampling:
                 #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
@@ -215,27 +215,28 @@ def evaluate(model, head_loader, tail_loader, args):
             positive_sample = positive_sample.to(device)
             negative_sample = negative_sample[:, 1:].to(device)
             
-            if args.model == 'conve':
-                y_pred_pos = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
-            elif args.model == 'convkb':
-                y_pred_pos = model(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+            # if args.model == 'conve':
+            #     y_pred_pos = model.valid(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
+            # elif args.model == 'convkb':
+            y_pred_pos = model(positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2])
             
             if mode == 'head-batch':
                 head_neg = negative_sample.reshape(-1)
                 true_tail = positive_sample[:, 2].repeat_interleave(negative_sample.size(1))
                 true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
-                if args.model == 'conve':
-                    y_pred_neg = model.valid(head_neg, true_rel, true_tail)
-                elif args.model == 'convkb':
-                    y_pred_neg = model(head_neg, true_rel, true_tail)
+                # if args.model == 'conve':
+                #     y_pred_neg = model.valid(head_neg, true_rel, true_tail)
+                # elif args.model == 'convkb':
+                y_pred_neg = model(head_neg, true_rel, true_tail)
             elif mode == 'tail-batch':
                 tail_neg = negative_sample.reshape(-1)
                 true_head = positive_sample[:, 0].repeat_interleave(negative_sample.size(1))
                 true_rel = positive_sample[:, 1].repeat_interleave(negative_sample.size(1))
-                if args.model == 'conve':
-                    y_pred_neg = model.valid(true_head, true_rel, tail_neg)
-                elif args.model == 'convkb':
-                    y_pred_neg = model(true_head, true_rel, tail_neg)
+                # if args.model == 'conve':
+                #     y_pred_neg = model.valid(true_head, true_rel, tail_neg)
+                # elif args.model == 'convkb':
+                y_pred_neg = model(true_head, true_rel, tail_neg)
+                
             y_pred_neg = y_pred_neg.view(negative_sample.shape)
 
             y_pred_pos = y_pred_pos.view(-1, 1)
@@ -265,37 +266,37 @@ def evaluate(model, head_loader, tail_loader, args):
     return test_logs
 
 
-class ConvETrainDataset(Dataset):
-    def __init__(self, triples, nentity, nrelation, negative_sample_size, mode, count, true_head, true_tail, entity_dict):
-        self.len = len(triples['head'])
-        self.triples = triples
-        self.nentity = nentity
-        self.nrelation = nrelation
-        self.negative_sample_size = negative_sample_size
-        self.mode = mode
-        self.count = count
-        self.true_head = true_head
-        self.true_tail = true_tail
-        self.entity_dict = entity_dict
+# class ConvETrainDataset(Dataset):
+#     def __init__(self, triples, nentity, nrelation, negative_sample_size, mode, count, true_head, true_tail, entity_dict):
+#         self.len = len(triples['head'])
+#         self.triples = triples
+#         self.nentity = nentity
+#         self.nrelation = nrelation
+#         self.negative_sample_size = negative_sample_size
+#         self.mode = mode
+#         self.count = count
+#         self.true_head = true_head
+#         self.true_tail = true_tail
+#         self.entity_dict = entity_dict
         
-    def __len__(self):
-        return self.len
+#     def __len__(self):
+#         return self.len
     
-    def __getitem__(self, idx):
-        head, relation, tail = self.triples['head'][idx], self.triples['relation'][idx], self.triples['tail'][idx]
-        head_type, tail_type = self.triples['head_type'][idx], self.triples['tail_type'][idx]
-        true_tails = torch.LongTensor(self.true_tail[(head.item(),relation.item())]) + self.entity_dict[tail_type][0]
+#     def __getitem__(self, idx):
+#         head, relation, tail = self.triples['head'][idx], self.triples['relation'][idx], self.triples['tail'][idx]
+#         head_type, tail_type = self.triples['head_type'][idx], self.triples['tail_type'][idx]
+#         true_tails = torch.LongTensor(self.true_tail[(head.item(),relation.item())]) + self.entity_dict[tail_type][0]
             
-        return (head + self.entity_dict[head_type][0]).item(), relation.item(), true_tails.tolist()
+#         return (head + self.entity_dict[head_type][0]).item(), relation.item(), true_tails.tolist()
     
-    @staticmethod
-    def collate_fn(data):
-        max_len = max(map(lambda x: len(x[2]), data))
-        for _,_, indices in data:
-            indices.extend(repeat(indices[0], max_len - len(indices)))
+#     @staticmethod
+#     def collate_fn(data):
+#         max_len = max(map(lambda x: len(x[2]), data))
+#         for _,_, indices in data:
+#             indices.extend(repeat(indices[0], max_len - len(indices)))
 
-        s, o, i = zip(*data)
-        return torch.LongTensor(s), torch.LongTensor(o), torch.LongTensor(i)
+#         s, o, i = zip(*data)
+#         return torch.LongTensor(s), torch.LongTensor(o), torch.LongTensor(i)
 
 
 def main():
@@ -394,40 +395,39 @@ def main():
     set_seed(args.seed)
     print(f'====================== run: {args.seed} ======================')
 
-    if (args.negative_loss) or (args.model == 'convkb'):
-        train_dataloader_head = DataLoader(
-            TrainDataset(train_triples, nentity, nrelation, 
-                args.negative_sample_size, 'head-batch',
-                train_count, train_true_head, train_true_tail,
-                entity_dict), 
-            batch_size=args.batch_size,
-            shuffle=True, 
-            num_workers=args.num_workers,
-            collate_fn=TrainDataset.collate_fn
-        )
+    train_dataloader_head = DataLoader(
+        TrainDataset(train_triples, nentity, nrelation, 
+            args.negative_sample_size, 'head-batch',
+            train_count, train_true_head, train_true_tail,
+            entity_dict), 
+        batch_size=args.batch_size,
+        shuffle=True, 
+        num_workers=args.num_workers,
+        collate_fn=TrainDataset.collate_fn
+    )
 
-        train_dataloader_tail = DataLoader(
-            TrainDataset(train_triples, nentity, nrelation, 
-                args.negative_sample_size, 'tail-batch',
-                train_count, train_true_head, train_true_tail,
-                entity_dict), 
-            batch_size=args.batch_size,
-            shuffle=True, 
-            num_workers=args.num_workers,
-            collate_fn=TrainDataset.collate_fn
-        )
+    train_dataloader_tail = DataLoader(
+        TrainDataset(train_triples, nentity, nrelation, 
+            args.negative_sample_size, 'tail-batch',
+            train_count, train_true_head, train_true_tail,
+            entity_dict), 
+        batch_size=args.batch_size,
+        shuffle=True, 
+        num_workers=args.num_workers,
+        collate_fn=TrainDataset.collate_fn
+    )
         
-    else:
-        train_dataloader_head = DataLoader(
-            ConvETrainDataset(train_triples, nentity, nrelation, 
-                args.negative_sample_size, 'head-batch',
-                train_count, train_true_head, train_true_tail,
-                entity_dict), 
-            batch_size=args.batch_size,
-            shuffle=True, 
-            num_workers=args.num_workers,
-            collate_fn=ConvETrainDataset.collate_fn
-        )
+    
+    # train_dataloader_head = DataLoader(
+    #     ConvETrainDataset(train_triples, nentity, nrelation, 
+    #         args.negative_sample_size, 'head-batch',
+    #         train_count, train_true_head, train_true_tail,
+    #         entity_dict), 
+    #     batch_size=args.batch_size,
+    #     shuffle=True, 
+    #     num_workers=args.num_workers,
+    #     collate_fn=ConvETrainDataset.collate_fn
+    # )
     
     # Set training configuration
     if args.model == 'conve':
@@ -451,10 +451,10 @@ def main():
         if args.negative_loss:
             train_out = negative_train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
         else:
-            if args.model == 'conve':
-                train_out = train_conve(model, criterion, train_dataloader_head, optimizer, scheduler, args, device)
-            elif args.model == 'convkb':
-                train_out = train_convkb(model, criterion, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
+            # if args.model == 'conve':
+            #     train_out = train_conve(model, criterion, train_dataloader_head, optimizer, scheduler, args, device)
+            # elif args.model == 'convkb':
+            train_out = train(model, criterion, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
         
         train_losses = {}
         for l in train_out[0].keys():
