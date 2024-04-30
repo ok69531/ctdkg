@@ -10,7 +10,7 @@ from torch.nn.init import xavier_normal_
 
 from torch_geometric.nn import RGCNConv
 
-from module.compgcn_layer import CompGCNConv, CompGCNConvBasis
+# from module.compgcn_layer import CompGCNConv, CompGCNConvBasis
 
 
 class KGEModel(nn.Module):
@@ -449,47 +449,47 @@ class ConvKB(nn.Module):
 
 
 # --------------------------------- CompGCN --------------------------------- #
-class CompGCNBase(nn.Module):
-    def __init__(self, hidden_dim, nentity, nrelation, edge_index, edge_type, num_bases=5, score_func='dismult', bias=False, dropout=0, opn='mult'):
-        super(CompGCNBase, self).__init__()
+# class CompGCNBase(nn.Module):
+#     def __init__(self, hidden_dim, nentity, nrelation, edge_index, edge_type, num_bases=5, score_func='dismult', bias=False, dropout=0, opn='mult'):
+#         super(CompGCNBase, self).__init__()
         
-        self.dropout = dropout
-        self.edge_index = edge_index
-        self.edge_type = edge_type
-        self.score_func = score_func
-        self.init_embed = nn.Parameter(torch.Tensor(nentity, hidden_dim))
+#         self.dropout = dropout
+#         self.edge_index = edge_index
+#         self.edge_type = edge_type
+#         self.score_func = score_func
+#         self.init_embed = nn.Parameter(torch.Tensor(nentity, hidden_dim))
         
-        if num_bases > 0:
-            self.init_rel = nn.Parameter(torch.Tensor(num_bases, hidden_dim))
-        else:
-            if self.score_func == 'transe': 
-                self.init_rel = nn.Parameter(torch.Tensor(nrelation, hidden_dim))
-            else:
-                self.init_rel = nn.Parameter(torch.Tensor(nrelation*2, hidden_dim)) 
+#         if num_bases > 0:
+#             self.init_rel = nn.Parameter(torch.Tensor(num_bases, hidden_dim))
+#         else:
+#             if self.score_func == 'transe': 
+#                 self.init_rel = nn.Parameter(torch.Tensor(nrelation, hidden_dim))
+#             else:
+#                 self.init_rel = nn.Parameter(torch.Tensor(nrelation*2, hidden_dim)) 
         
-        if num_bases > 0:
-            self.conv1 = CompGCNConvBasis(hidden_dim, nrelation, num_bases, opn=opn)
-            self.conv2 = CompGCNConv(hidden_dim, nrelation, opn=opn)
-        else:
-            self.conv1 = CompGCNConv(hidden_dim, nrelation)
-            self.conv2 = CompGCNConv(hidden_dim, nrelation)
+#         if num_bases > 0:
+#             self.conv1 = CompGCNConvBasis(hidden_dim, nrelation, num_bases, opn=opn)
+#             self.conv2 = CompGCNConv(hidden_dim, nrelation, opn=opn)
+#         else:
+#             self.conv1 = CompGCNConv(hidden_dim, nrelation)
+#             self.conv2 = CompGCNConv(hidden_dim, nrelation)
         
-        if bias: self.register_parameter('bias', nn.Parameter(torch.zeros(nentity)))
+#         if bias: self.register_parameter('bias', nn.Parameter(torch.zeros(nentity)))
 
-        self.reset_parameters()
+#         self.reset_parameters()
         
-    def reset_parameters(self):
-        nn.init.xavier_normal_(self.init_rel)
-        nn.init.xavier_normal_(self.init_embed)
+#     def reset_parameters(self):
+#         nn.init.xavier_normal_(self.init_rel)
+#         nn.init.xavier_normal_(self.init_embed)
     
-    def forward(self, sub, rel, obj):
-        r = self.init_rel if self.score_func != 'transe' else torch.cat([self.init_rel, -self.init_rel], dim=0)
-        x, r = self.conv1(self.init_embed, self.edge_index, self.edge_type, rel_embed=r)
-        x = nn.functional.dropout(x, p=self.dropout, training=self.training)
-        x, r = self.conv2(x, self.edge_index, self.edge_type, rel_embed=r)
+#     def forward(self, sub, rel, obj):
+#         r = self.init_rel if self.score_func != 'transe' else torch.cat([self.init_rel, -self.init_rel], dim=0)
+#         x, r = self.conv1(self.init_embed, self.edge_index, self.edge_type, rel_embed=r)
+#         x = nn.functional.dropout(x, p=self.dropout, training=self.training)
+#         x, r = self.conv2(x, self.edge_index, self.edge_type, rel_embed=r)
         
-        sub_emb = torch.index_select(x, 0, sub)
-        rel_emb = torch.index_select(r, 0, rel)
-        obj_emb = torch.index_select(x, 0, obj)
+#         sub_emb = torch.index_select(x, 0, sub)
+#         rel_emb = torch.index_select(r, 0, rel)
+#         obj_emb = torch.index_select(x, 0, obj)
         
-        return sub_emb, rel_emb, obj_emb
+#         return sub_emb, rel_emb, obj_emb

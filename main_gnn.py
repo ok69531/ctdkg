@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 import torch_geometric
 from torch_geometric.nn import GAE
 
-from module.model import GNNEncoder, DistMultDecoder, CompGCNBase
+from module.model import GNNEncoder, DistMultDecoder #, CompGCNBase
 from module.set_seed import set_seed
 from module.argument import parse_args
 from module.dataset import LinkPredDataset, TrainDataset, TestDataset
@@ -398,8 +398,8 @@ def main():
             GNNEncoder(num_nodes = nentity, num_relations = nrelation, hidden_dim = args.hidden_dim, gnn_model = args.model, num_layers = 2),
             DistMultDecoder(nrelation, args.hidden_dim)
         ).to(device)
-    elif args.model == 'compgcn':
-        model = CompGCNBase(args.hidden_dim, args.nentity, args.nrelation, edge_index, edge_type).to(device)
+    # elif args.model == 'compgcn':
+    #     model = CompGCNBase(args.hidden_dim, args.nentity, args.nrelation, edge_index, edge_type).to(device)
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), 
