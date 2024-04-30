@@ -8,6 +8,8 @@ The code is written in Python 3 (>= 3.10.0) and required packages as follow:
 - torch_geometric >= 2.3.1
 - torch_scatter >= 2.1.1 (not necessary, need for compgcn implementation)
 
+Please check [INSTALL.md](./INSTALL.md) for installation details.
+
 
 ## Basic Usage
 ### Data download
