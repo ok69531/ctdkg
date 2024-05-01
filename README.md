@@ -60,24 +60,26 @@ valid_dataloader_head = DataLoader(
 )
 ```
 The head loader means that head entities of true triples were contaminated $(h', r, t)$. If you want to make a tail loader, substitute 'head-batch' with 'tail-batch.'
+If you run the code on the local environment, then set the num_workers argument to `num_workers=0`.
 
 ### Training & Evaluation
+We support eight models and seven datasets. 
+
+Datasets: ```cd, cg-v1, cg-v2, gd, cgd, cgpd, ctd```
 ```python
 # for translation models
-python main.py --model=TransE
-python main.py --model=RotatE -double_entity_embedding
-python main.py --model=HAKE --learning_rate=0.00001 --double_entity_embedding --num_relation_embedding=3
+python main.py --dataset=cd --model=TransE
+python main.py --dataset=cd --model=RotatE -double_entity_embedding
+python main.py --dataset=cd --model=HAKE --learning_rate=0.00001 --double_entity_embedding --num_relation_embedding=3
 
 # for semantic information models
-python main.py --model=DistMult --learning_rate=0.00001 
-python main.py --model=ComplEx --learning_rate=0.00001 --double_entity_embedding --num_relation_embedding=2
+python main.py --dataset=cd --model=DistMult --learning_rate=0.00001 
+python main.py --dataset=cd --model=ComplEx --learning_rate=0.00001 --double_entity_embedding --num_relation_embedding=2
 
 # for neural network models
-python main_conv.py --model=conve --learning_rate=0.001 --negative_sample_size=1
-python main_conv.py --model=convkb --learning_rate=0.005 --negative_sample_size=1
-python main_gnn.py --model=rgcn --learning_rate=0.001 --negative_sample_size=1
-
-!TODO add guide for dataset option
+python main_conv.py --dataset=cd --model=conve --learning_rate=0.001 --negative_sample_size=1
+python main_conv.py --dataset=cd --model=convkb --learning_rate=0.005 --negative_sample_size=1
+python main_gnn.py --dataset=cd --model=rgcn --learning_rate=0.001 --negative_sample_size=1
 ```
 
 

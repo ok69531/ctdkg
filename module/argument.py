@@ -15,8 +15,7 @@ def parse_args(args=None):
     # parser.add_argument('--evaluate_train', action='store_true', help='Evaluate on training data')
     
     parser.add_argument('--seed', type=int, default=0)
-    # !TODO add dataset option help kindly
-    parser.add_argument('--dataset', type=str, default='cd', help='dataset name, default to cd')
+    parser.add_argument('--dataset', type=str, default='cd', help='dataset name, default to cd (cd, cg-v1, cg-v2, gd, cgd, cgpd, ctd)')
     parser.add_argument('--train_frac', type=float, default=0.1, help='fraction of training data for large scale dataset')
     parser.add_argument('--model', default='TransE', type=str, help='TransE, RotatE, DistMult, ComplEx, conve, rgcn, compgcn')
     parser.add_argument('-de', '--double_entity_embedding', action='store_true')
@@ -37,7 +36,6 @@ def parse_args(args=None):
                         help='use negative sampling loss to train ConvE')
     
     parser.add_argument('-lr', '--learning_rate', default=0.0001, type=float)
-    #!TODO add num_workers guide for running in local
     parser.add_argument('-nw', '--num_workers', default=1, type = int)
     parser.add_argument('-init', '--init_checkpoint', default=None, type=str)
     parser.add_argument('--num_epoch', default = 100, type = int)
