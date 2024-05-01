@@ -76,6 +76,8 @@ python main.py --model=ComplEx --learning_rate=0.00001 --double_entity_embedding
 python main_conv.py --model=conve --learning_rate=0.001 --negative_sample_size=1
 python main_conv.py --model=convkb --learning_rate=0.005 --negative_sample_size=1
 python main_gnn.py --model=rgcn --learning_rate=0.001 --negative_sample_size=1
+
+!TODO add guide for dataset option
 ```
 
 
