@@ -4,9 +4,11 @@ Source code for 'A New Large-Scale Benchmark Knowledge Graph Leveraging the Comp
 
 ## Requirements & Installation
 The code is written in Python 3 (>= 3.10.0) and required packages as follow:
-- torch >= 2.0.1
-- torch_geometric >= 2.3.1
-- torch_scatter >= 2.1.1 (not necessary, need for compgcn implementation)
+- torch
+- torch_geometric
+- torch_scatter (not necessary, need for compgcn implementation)
+
+Please check [INSTALL.md](./INSTALL.md) for installation details.
 
 
 ## Basic Usage

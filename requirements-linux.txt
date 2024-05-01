@@ -1,0 +1,5 @@
+--extra-index-url https://download.pytorch.org/whl/cu113
+torch==1.12.1+cu113
+--find-links https://data.pyg.org/whl/torch-1.12.1+cu113.html
+torch-scatter==2.1.0+pt112cu113
+torch-geometric==2.1.0
