@@ -37,6 +37,7 @@ def parse_args(args=None):
                         help='use negative sampling loss to train ConvE')
     
     parser.add_argument('-lr', '--learning_rate', default=0.0001, type=float)
+    #!TODO add num_workers guide for running in local
     parser.add_argument('-nw', '--num_workers', default=1, type = int)
     parser.add_argument('-init', '--init_checkpoint', default=None, type=str)
     parser.add_argument('--num_epoch', default = 100, type = int)
