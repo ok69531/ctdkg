@@ -70,11 +70,11 @@ Datasets: ```cd, cg-v1, cg-v2, gd, cgd, cgpd, ctd```
 # for translation models
 python main.py --dataset=cd --model=TransE
 python main.py --dataset=cd --model=RotatE -double_entity_embedding
-python main.py --dataset=cd --model=HAKE --learning_rate=0.00001 --double_entity_embedding --num_relation_embedding=3
+python main.py --dataset=cd --model=HAKE --double_entity_embedding --num_relation_embedding=3
 
 # for semantic information models
-python main.py --dataset=cd --model=DistMult --learning_rate=0.00001 
-python main.py --dataset=cd --model=ComplEx --learning_rate=0.00001 --double_entity_embedding --num_relation_embedding=2
+python main.py --dataset=cd --model=DistMult
+python main.py --dataset=cd --model=ComplEx --double_entity_embedding --num_relation_embedding=2
 
 # for neural network models
 python main_conv.py --dataset=cd --model=conve --learning_rate=0.001 --negative_sample_size=1
