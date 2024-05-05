@@ -826,6 +826,63 @@ def build_gpheno_graph(file_path = 'raw/gene_phenotype', save_path = 'processed/
     return data, save_path
 
 
+def build_dpheno_graph(file_path = 'raw/disease_phenotype', save_path = 'processed/dpheno'):
+    print('>>> Processing Disease-Phenotype Data ...')
+    print('----------------------------------------------------------------------------')
+    
+    file_list = os.listdir(file_path)
+    dis_pheno_tmp = pd.concat([pd.read_csv(f'{file_path}/{f}') for f in tqdm(file_list)])
+    
+    dis_col = 'Disease ID'
+    pheno_col = 'Phenotype Term ID'
+    dis_pheno = dis_pheno_tmp[[dis_col, pheno_col]].drop_duplicates()
+    
+    ### build graph
+    uniq_dis = dis_pheno[dis_col].unique()
+    dis_map = {name: i for i, name in enumerate(uniq_dis)}
+
+    uniq_pheno = dis_pheno[pheno_col].unique()
+    pheno_map = {name: i for i, name in enumerate(uniq_pheno)}
+
+    edge_type_map = {
+        'dis_related_pheno': 0,
+        'pheno_related_dis': 1
+    }
+
+    # mapping the phenotype and disease id
+    dis_pheno[dis_col] = dis_pheno[dis_col].apply(lambda x: dis_map[x])
+    dis_pheno[pheno_col] = dis_pheno[pheno_col].apply(lambda x: pheno_map[x])
+
+    data = Data()
+    data.num_nodes_dict = {
+        'disease': len(dis_map),
+        'phenotype': len(pheno_map)
+    }
+    data.edge_index_dict = {
+        ('disease', 'dis_related_pheno', 'phenotype'): torch.from_numpy(dis_pheno.values.T).to(torch.long),
+        ('phenotype', 'pheno_related_dis', 'disease'): torch.from_numpy(dis_pheno.values.T[[1, 0]]).to(torch.long)
+    }
+    data.edge_reltype = {
+        (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
+    }
+    data.num_relations = len(data.edge_index_dict)
+
+    ### save chemical/disease/rel_type mapping
+    if isdir(save_path):
+        pass
+    else:
+        makedirs(save_path)
+
+    torch.save(data, f'{save_path}/dpheno.pt')
+    torch.save(dis_map, f'{save_path}/dis_map')
+    torch.save(pheno_map, f'{save_path}/pheno_map')
+    torch.save(edge_type_map, f'{save_path}/rel_type_map')
+
+    print('Disease-Phenotype graph is successfully constructed.')
+    
+    return data, save_path
+
+
 def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
     print('>>> Processing Disease-Pathway Data ...')
     print('----------------------------------------------------------------------------')
@@ -1222,13 +1279,13 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
     
     # cgpd, cpath, cgo
     # gpath, ggo
-    # dpath, dgo
+    # dpath, dgo, dpheno
     
     # chemical
     cgpd_data = torch.load(f'{file_path}/cgpd/cgpd.pt')
     cgpd_chem_map = torch.load(f'{file_path}/cgpd/chem_map')
     cgpd_gene_map = torch.load(f'{file_path}/cgpd/gene_map')
-    pheno_map = torch.load(f'{file_path}/cgpd/pheno_map')
+    cgpd_pheno_map = torch.load(f'{file_path}/cgpd/pheno_map')
     cgpd_dis_map = torch.load(f'{file_path}/cgpd/dis_map')
     
     cpath_data = torch.load(f'{file_path}/cpath/cpath.pt')
@@ -1257,6 +1314,10 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
     dgo_dis_map = torch.load(f'{file_path}/dgo/dis_map')
     dgo_go_map = torch.load(f'{file_path}/dgo/go_map')
     
+    dpheno_data = torch.load(f'{file_path}/dpheno/dpheno.pt')
+    dpheno_dis_map = torch.load(f'{file_path}/dpheno/dis_map')
+    dpheno_pheno_map = torch.load(f'{file_path}/dpheno/pheno_map')
+    
     # mapping
     uniq_chem = set(list(cgpd_chem_map.keys()) + list(cpath_chem_map.keys()) + list(cgo_chem_map.keys()))
     chem_map = {name: i for i, name in enumerate(uniq_chem)}
@@ -1264,7 +1325,7 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
     uniq_gene = set(list(cgpd_gene_map.keys()) + list(gpath_gene_map.keys()) + list(ggo_gene_map.keys()))
     gene_map = {name: i for i, name in enumerate(uniq_gene)}
     
-    uniq_dis = set(list(cgpd_dis_map.keys()) + list(dpath_dis_map.keys()) + list(dgo_dis_map.keys()))
+    uniq_dis = set(list(cgpd_dis_map.keys()) + list(dpath_dis_map.keys()) + list(dgo_dis_map.keys()) + list(dpheno_dis_map.keys()))
     dis_map = {name: i for i, name in enumerate(uniq_dis)}
     
     uniq_path = set(list(cpath_path_map.keys()) + list(gpath_path_map.keys()) + list(dpath_path_map.keys()))
@@ -1273,8 +1334,10 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
     uniq_go = set(list(cgo_go_map.keys()) + list(ggo_go_map.keys()) + list(dgo_go_map.keys()))
     go_map = {name: i for i, name in enumerate(uniq_go)}
     
+    uniq_pheno = set(list(cgpd_pheno_map.keys()) + list(dpheno_pheno_map.keys()))
+    pheno_map = {name: i for i, name in enumerate(uniq_pheno)}    
     
-    data_list = [cgpd_data, cpath_data, cgo_data, gpath_data, ggo_data, dpath_data, dgo_data]
+    data_list = [cgpd_data, cpath_data, cgo_data, gpath_data, ggo_data, dpath_data, dgo_data, dpheno_data]
     rel_type_list = [list(data.edge_index_dict.keys()) for data in data_list]
     rel_type_list = list(itertools.chain(*rel_type_list))
     edge_type_map = {r: i for i, (h, r, t) in enumerate(rel_type_list)}
@@ -1300,7 +1363,7 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
             old_hmap = cgpd_chem_map; old_tmap = cgpd_gene_map
             new_hmap = chem_map; new_tmap = gene_map
         elif (h=='chemical') & (t=='phenotype'): 
-            old_hmap = cgpd_chem_map; old_tmap = pheno_map
+            old_hmap = cgpd_chem_map; old_tmap = cgpd_pheno_map
             new_hmap = chem_map; new_tmap = pheno_map
         elif (h=='chemical') & (t=='disease'): 
             old_hmap = cgpd_chem_map; old_tmap = cgpd_dis_map
@@ -1312,10 +1375,10 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
             old_hmap = cgo_chem_map; old_tmap = cgo_go_map
             new_hmap = chem_map; new_tmap = go_map
         elif (h=='gene') & (t=='phenotype'): 
-            old_hmap = cgpd_gene_map;   old_tmap = pheno_map
+            old_hmap = cgpd_gene_map; old_tmap = cgpd_pheno_map
             new_hmap = gene_map; new_tmap = pheno_map
         elif (h=='phenotype') & (t=='gene'): 
-            old_hmap = pheno_map ;  old_tmap = cgpd_gene_map
+            old_hmap = cgpd_pheno_map ;  old_tmap = cgpd_gene_map
             new_hmap = pheno_map; new_tmap = gene_map
         elif (h=='gene') & (t=='disease'): 
             old_hmap = cgpd_gene_map; old_tmap = cgpd_dis_map
@@ -1344,6 +1407,12 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
         elif (h=='gene_ontology') & (t=='disease'):
             old_hmap = dgo_go_map; old_tmap = dgo_dis_map
             new_hmap = go_map; new_tmap = dis_map
+        elif (h=='disease') & (t=='phenotype'):
+            old_hmap = dpheno_dis_map; old_tmap = dpheno_pheno_map
+            new_hmap = dis_map; new_tmap = pheno_map
+        elif (h=='phenotype') & (t=='disease'):
+            old_hmap=dpheno_pheno_map; old_tmap=dpheno_dis_map
+            new_hmap=pheno_map; new_tmap=dis_map
         
         heads, tails = edge_index_dict[(h, r, t)].numpy()
         # value to key
@@ -1408,10 +1477,12 @@ def build_benchmarks(data_type, train_frac, valid_frac):
         data, save_path = build_gd_graph()
     elif data_type == 'dpath':
         data, save_path = build_dpath_graph()
-    elif data_type == 'cgd':
-        data, save_path = build_cgd_graph()
     elif data_type == 'dgo':
         data, save_path = build_dgo_graph()
+    elif data_type == 'dpheno':
+        data, save_path = build_dpheno_graph()
+    elif data_type == 'cgd':
+        data, save_path = build_cgd_graph()
     elif data_type == 'cgpd':
         data, save_path = build_cgpd_graph()
     elif data_type == 'ctd':
@@ -1472,6 +1543,7 @@ if __name__ == '__main__':
     build_ggo_graph()
     build_dpath_graph()
     build_dgo_graph()
+    build_dpheno_graph()
     build_benchmarks('cd', 0.9, 0.05)
     build_benchmarks('cg-v1', 0.9, 0.05)
     build_benchmarks('cg-v2', 0.9, 0.05)
