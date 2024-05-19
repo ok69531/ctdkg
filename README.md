@@ -20,7 +20,7 @@ from module.dataset import LinkPredDataset
 dataset = LinkPredDataset(name = 'cd')
 train_triples, valid_triples, test_triples = dataset.get_edge_split()
 ```
-If you have problems downloading the dataset, refer to the [link](https://github.com/ok69531/ctdkg/tags) and manually install the dataset. This will be modified soon.
+If you have problems downloading the dataset, refer to the [link](https://huggingface.co/datasets/soyoungc/CTDKG) and manually install the dataset. This will be modified soon.
 
 ### Data loader
 ``` python
