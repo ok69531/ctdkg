@@ -1,7 +1,5 @@
 import os
-import gzip
 import logging
-import shutil
 import requests
 import itertools
 
@@ -44,38 +42,39 @@ class LinkPredDataset(object):
             
             # download full graph
             logging.info(f'>>> Downloading {self.name.upper()} graph ...')
-            data_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-v1.0/{self.name}.pt'
+            if 'cg' in self.name:
+                ver = self.name.split('-')[1]
+                data_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{self.name}.pt?download=true'
+            else:
+                data_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{self.name}.pt?download=true'
             response = requests.get(data_url)
             
-            with open(os.path.join(processed_dir, self.name+'.pt'), 'wb') as f:
+            with open(pre_processed_file_path, 'wb') as f:
                 f.write(response.content)
             logging.info(f'    {self.name.upper()} graph is downloaded.')
             
             # download train/validation/test data
             logging.info(f'>>> Downloading splitted {self.name.upper()} graph ...')
-            train_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-train-v1.0/train_{self.name}.gz'
-            valid_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-valid-v1.0/valid_{self.name}.gz'
-            test_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-test-v1.0/test_{self.name}.gz'
-            
-            for url in [train_url, valid_url, test_url]:
-                gz_file_name = url.split('/')[-1]
-                pt_file_name = gz_file_name.split('.')[0]+'.pt'
+            split_types = ['train', 'valid', 'test']
+            for split_type in split_types:
+                if 'cg' in self.name:
+                    split_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{split_type}_{self.name}.pt?download=true'
+                else:
+                    split_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{split_type}_{self.name}.pt?download=true'
+                response = requests.get(split_url)
                 
-                response = requests.get(url)
-                
-                with open(os.path.join(processed_dir, gz_file_name), 'wb') as f:
+                with open(f'{self.root}/{split_type}_{self.name}.pt', 'wb') as f:
                     f.write(response.content)
-                
-                with gzip.open(os.path.join(processed_dir, gz_file_name), 'rb') as raw:
-                    with open(os.path.join(self.root, pt_file_name), 'wb') as out:
-                        shutil.copyfileobj(raw, out)
             logging.info(f'    Training/Validation/Test graphs were downloaded.')
             
             # download mapping of entyties and relations
             logging.info(f'>>> Downloading the mapping of entities and relations ...')
             map_types = ['rel_type', 'chem', 'gene', 'dis', 'pheno', 'path', 'go']
             for map_type in map_types:
-                map_url = f'https://github.com/ok69531/ctdkg/releases/download/{self.name}-v1.0/{map_type}_map'
+                if 'cg' in self.name:
+                    map_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{map_type}_map?download=true'
+                else:
+                    map_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{map_type}_map?download=true'
                 response = requests.get(map_url)
                 
                 if response.status_code == 200:
@@ -84,7 +83,8 @@ class LinkPredDataset(object):
             logging.info(f'    Mappings were downloaded.')
             logging.info(f'>>> All elements were downloaded.')
             
-            self.graph = torch.load(os.path.join(processed_dir, self.name+'.pt'))
+            self.graph = torch.load(pre_processed_file_path)
+
     
     def get_edge_split(self):
         train_data = torch.load(os.path.join(self.root, 'train_'+self.name+'.pt'))
