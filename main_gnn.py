@@ -37,6 +37,7 @@ wandb.login(key = open('module/wandb_key.txt', 'r').readline())
 wandb.init(project = f'ctdkg', entity = 'soyoung')
 wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 wandb.run.save()
+wandb.config.update(args)
 
 criterion = nn.BCEWithLogitsLoss()
 
@@ -408,8 +409,21 @@ def main():
     scheduler = StepLR(optimizer, step_size=30, gamma=0.8)
     # scheduler = ReduceLROnPlateau(optimizer, 'min')
 
+    init_epoch = 1
     best_val_mrr = 0
-    for epoch in range(1, args.num_epoch + 1):
+    stopupdate = 0
+    
+    file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}'
+    if args.init_checkpoint:
+        check_points = torch.load(f'{save_path}/{file_name}_epoch{args.init_checkpoint}.pt')
+        init_epoch = check_points['epoch'] +1
+        best_val_mrr = check_points['best_mrr']
+        stopupdate = check_points['stopupdate']
+        model.load_state_dict(check_points['model_state_dict'])
+        optimizer.load_state_dict(check_points['optimizer_state_dict'])
+        scheduler.load_state_dict(check_points['scheduler_dict'])
+        
+    for epoch in range(init_epoch, args.num_epoch + 1):
         print(f"=== Epoch: {epoch}")
         
         if args.negative_loss:
@@ -432,6 +446,25 @@ def main():
             wandb.log({
                 'Train loss': train_losses['loss']
             })
+            
+        check_points = {
+            'seed': args.seed,
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_dict': scheduler.state_dict(),
+            'best_mrr': best_val_mrr,
+            'stopupdate': stopupdate}
+
+        file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}'
+        torch.save(check_points, f'{save_path}/{file_name}_epoch{epoch}.pt')
+        
+        artifact = wandb.Artifact(
+            f'{args.dataset}_{args.model}', 
+            type='model',
+            metadata=vars(args))
+        artifact.add_file(f'{save_path}/{file_name}_epoch{epoch}')
+        wandb.log_artifact(artifact)
             
         if epoch % 10 == 0:
             valid_logs = evaluate(model, edge_index, edge_type, valid_dataloader_head, valid_dataloader_tail, args)
