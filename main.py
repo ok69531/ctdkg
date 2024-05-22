@@ -1,5 +1,5 @@
 import os
-import wandb
+# import wandb
 import random
 import logging
 
@@ -29,11 +29,11 @@ logging.basicConfig(format='', level=logging.INFO)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'cuda is available: {torch.cuda.is_available()}')
 
-wandb.login(key = open('module/wandb_key.txt', 'r').readline())
-wandb.init(project = f'ctdkg', entity = 'soyoung')
-wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
-wandb.run.save()
-wandb.config.update(args)
+# wandb.login(key = open('module/wandb_key.txt', 'r').readline())
+# wandb.init(project = f'ctdkg', entity = 'soyoung')
+# wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
+# wandb.run.save()
+# wandb.config.update(args)
 
 def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
     model.train()
@@ -318,11 +318,11 @@ def main():
             train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
             print(f'Train {l}: {train_losses[l]:.5f}')
         
-        wandb.log({
-            'Train positive sample loss': train_losses['positive_sample_loss'],
-            'Train negative sample loss': train_losses['negative_sample_loss'],
-            'Train loss': train_losses['loss']
-        })
+        # wandb.log({
+        #     'Train positive sample loss': train_losses['positive_sample_loss'],
+        #     'Train negative sample loss': train_losses['negative_sample_loss'],
+        #     'Train loss': train_losses['loss']
+        # })
         
         check_points = {
             'seed': args.seed,
@@ -336,12 +336,12 @@ def main():
         file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}'
         torch.save(check_points, f'{save_path}/{file_name}_epoch{epoch}.pt')
         
-        artifact = wandb.Artifact(
-            f'{args.dataset}_{args.model}', 
-            type='model',
-            metadata=vars(args))
-        artifact.add_file(f'{save_path}/{file_name}_epoch{epoch}')
-        wandb.log_artifact(artifact)
+        # artifact = wandb.Artifact(
+        #     f'{args.dataset}_{args.model}', 
+        #     type='model',
+        #     metadata=vars(args))
+        # artifact.add_file(f'{save_path}/{file_name}_epoch{epoch}')
+        # wandb.log_artifact(artifact)
         
         if epoch % 10 == 0:
             valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
@@ -367,16 +367,16 @@ def main():
             print(f"Test hits@3: {test_metrics['hits@3']:.5f}")
             print(f"Test hits@10': {test_metrics['hits@10']:.5f}")
             
-            wandb.log({
-                'Valid MRR': valid_metrics['mrr'],
-                'Valid hits@1': valid_metrics['hits@1'],
-                'Valid hits@3': valid_metrics['hits@3'],
-                'Valid hits@10': valid_metrics['hits@10'],
-                'Test MRR': test_metrics['mrr'],
-                'Test hits@1': test_metrics['hits@1'],
-                'Test hits@3': test_metrics['hits@3'],
-                'Test hits@10': test_metrics['hits@10']
-            })
+            # wandb.log({
+            #     'Valid MRR': valid_metrics['mrr'],
+            #     'Valid hits@1': valid_metrics['hits@1'],
+            #     'Valid hits@3': valid_metrics['hits@3'],
+            #     'Valid hits@10': valid_metrics['hits@10'],
+            #     'Test MRR': test_metrics['mrr'],
+            #     'Test hits@1': test_metrics['hits@1'],
+            #     'Test hits@3': test_metrics['hits@3'],
+            #     'Test hits@10': test_metrics['hits@10']
+            # })
             
             if valid_metrics['mrr'] > best_val_mrr:
                 best_epoch = epoch
@@ -404,7 +404,7 @@ def main():
                     break
                 
     
-    wandb.log(best_val_result)
+    # wandb.log(best_val_result)
 
     print('')
     for metric in best_val_result.keys():
@@ -431,4 +431,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-wandb.run.finish()
+# wandb.run.finish()
