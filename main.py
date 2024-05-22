@@ -29,8 +29,8 @@ logging.basicConfig(format='', level=logging.INFO)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'cuda is available: {torch.cuda.is_available()}')
 
-# wandb.login(key = open('module/wandb_key.txt', 'r').readline())
-wandb.init(project = f'ctdkg')
+wandb.login(key = open('module/wandb_key.txt', 'r').readline())
+wandb.init(project = f'ctdkg', entity = 'soyoung')
 wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 wandb.run.save()
 wandb.config.update(args)
