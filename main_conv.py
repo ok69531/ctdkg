@@ -253,11 +253,13 @@ def evaluate(model, head_loader, tail_loader, args):
             hits3_list = (ranking_list <= 3).to(torch.float)
             hits10_list = (ranking_list <= 10).to(torch.float)
             mrr_list = 1./ranking_list.to(torch.float)
+            mr_list = ranking_list.to(torch.float)
             
             batch_results = {'hits@1_list': hits1_list,
                             'hits@3_list': hits3_list,
                             'hits@10_list': hits10_list,
-                            'mrr_list': mrr_list}
+                            'mrr_list': mrr_list,
+                            'mr_list': mr_list}
             
             for metric in batch_results:
                 test_logs[metric].append(batch_results[metric])
