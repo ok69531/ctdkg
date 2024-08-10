@@ -1,5 +1,6 @@
 import os
 # import wandb
+import random
 import logging
 
 import numpy as np
@@ -396,6 +397,15 @@ def main():
     set_seed(args.seed)
     print(f'====================== run: {args.seed} ======================')
 
+    if args.dataset in ['gd', 'cgd', 'cgpd', 'ctd']:
+        idx = random.sample(range(len(train_triples['head'])), int(len(train_triples['head'])*args.train_frac))
+
+        train_triples['head'] = train_triples['head'][idx]
+        train_triples['tail'] = train_triples['tail'][idx]
+        train_triples['relation'] = train_triples['relation'][idx]
+        train_triples['head_type'] = [train_triples['head_type'][i] for i in idx]
+        train_triples['tail_type'] = [train_triples['tail_type'][i] for i in idx]
+    
     train_dataloader_head = DataLoader(
         TrainDataset(train_triples, nentity, nrelation, 
             args.negative_sample_size, 'head-batch',
