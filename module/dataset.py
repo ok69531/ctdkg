@@ -23,7 +23,7 @@ class LinkPredDataset(object):
         if self.name not in self.avail_data:
             err_msg = f'Invalid dataset name: {self.name}\n'
             err_msg += 'Available datasets are as follows:\n'
-            err_msg += '\n'.join(self.namea)
+            err_msg += '\n'.join(self.name)
             raise ValueError(err_msg)
         
         self.download()

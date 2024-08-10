@@ -403,6 +403,22 @@ def main():
                     print(f'early stop at eopch {epoch}')
                     break
                 
+            check_points = {'seed': args.seed,
+                            'best_epoch': best_epoch,
+                            'model_state_dict': model_params,
+                            'optimizer_state_dict': optim_dict,
+                            'scheduler_dict': scheduler_dict}
+            
+            file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
+            torch.save(check_points, f'{save_path}/{file_name}')
+            
+            
+            log_save_path = f'best_val_log/{args.dataset}'
+            if os.path.isdir(log_save_path):
+                pass
+            else:
+                os.makedirs(log_save_path)
+            torch.save(best_val_result, f'{log_save_path}/{args.model}_{args.seed}')
     
     # wandb.log(best_val_result)
 
@@ -410,23 +426,6 @@ def main():
     for metric in best_val_result.keys():
         print(f'{metric}: {best_val_result[metric]:.5f}')
     
-    check_points = {'seed': args.seed,
-                    'best_epoch': best_epoch,
-                    'model_state_dict': model_params,
-                    'optimizer_state_dict': optim_dict,
-                    'scheduler_dict': scheduler_dict}
-    
-    file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
-    torch.save(check_points, f'{save_path}/{file_name}')
-    
-    
-    log_save_path = f'best_val_log/{args.dataset}'
-    if os.path.isdir(log_save_path):
-        pass
-    else:
-        os.makedirs(log_save_path)
-    torch.save(best_val_result, f'{log_save_path}/{args.model}_{args.seed}')
-
 
 if __name__ == '__main__':
     main()
