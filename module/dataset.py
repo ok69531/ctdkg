@@ -42,7 +42,7 @@ class LinkPredDataset(object):
             
             # download full graph
             logging.info(f'>>> Downloading {self.name.upper()} graph ...')
-            if 'cg' in self.name:
+            if (self.name == 'cg-v1') or (self.name == 'cg-v2'):
                 ver = self.name.split('-')[1]
                 data_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{self.name}.pt?download=true'
             else:
