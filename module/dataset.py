@@ -57,7 +57,7 @@ class LinkPredDataset(object):
             logging.info(f'>>> Downloading splitted {self.name.upper()} graph ...')
             split_types = ['train', 'valid', 'test']
             for split_type in split_types:
-                if 'cg' in self.name:
+                if (self.name == 'cg-v1') or (self.name == 'cg-v2'):
                     split_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{split_type}_{self.name}.pt?download=true'
                 else:
                     split_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{split_type}_{self.name}.pt?download=true'
@@ -71,7 +71,7 @@ class LinkPredDataset(object):
             logging.info(f'>>> Downloading the mapping of entities and relations ...')
             map_types = ['rel_type', 'chem', 'gene', 'dis', 'pheno', 'path', 'go']
             for map_type in map_types:
-                if 'cg' in self.name:
+                if (self.name == 'cg-v1') or (self.name == 'cg-v2'):
                     map_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{map_type}_map?download=true'
                 else:
                     map_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{map_type}_map?download=true'
