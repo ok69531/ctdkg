@@ -362,6 +362,7 @@ def main():
 
             
             print('----------')
+            print(f"Valid MR: {valid_metrics['mr']:.5f}")
             print(f"Valid MRR: {valid_metrics['mrr']:.5f}")
             print(f"Valid hits@1: {valid_metrics['hits@1']:.5f}")
             print(f"Valid hits@3: {valid_metrics['hits@3']:.5f}")
@@ -373,6 +374,7 @@ def main():
                 test_metrics[metric[:-5]] = torch.cat(test_logs[metric]).mean().item()       
             
             print('----------')
+            print(f"Test MR: {test_metrics['mr']:.5f}")
             print(f"Test MRR: {test_metrics['mrr']:.5f}")
             print(f"Test hits@1: {test_metrics['hits@1']:.5f}")
             print(f"Test hits@3: {test_metrics['hits@3']:.5f}")
@@ -394,10 +396,12 @@ def main():
                 best_val_mrr = valid_metrics['mrr']
                 best_val_result = {
                     'best_epoch': best_epoch,
+                    'best_val_mr': valid_metrics['mr'],
                     'best_val_mrr': valid_metrics['mrr'],
                     'best_val_hit1': valid_metrics['hits@1'],
                     'best_val_hit3': valid_metrics['hits@3'],
                     'best_val_hit10': valid_metrics['hits@10'],
+                    'final_test_mr': test_metrics['mr'],
                     'final_test_mrr': test_metrics['mrr'],
                     'final_test_hit1': test_metrics['hits@1'],
                     'final_test_hit3': test_metrics['hits@3'],
