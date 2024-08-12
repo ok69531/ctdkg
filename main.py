@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
-from module.model import KGEModel
+from module.model import KGEModel, GIE
 from module.set_seed import set_seed
 from module.argument import parse_args
 from module.dataset import LinkPredDataset, TrainDataset, TestDataset
@@ -280,15 +280,24 @@ def main():
     )
     
     # Set training configuration
-    model = KGEModel(
-        model_name=args.model,
-        nentity=nentity,
-        nrelation=nrelation,
-        hidden_dim=args.hidden_dim,
-        gamma=args.gamma,
-        double_entity_embedding=args.double_entity_embedding,
-        num_relation_embedding=args.num_relation_embedding
-    ).to(device)
+    if args.model.upper() == 'GIE':
+        model = GIE(
+            nentity=nentity,
+            nrelation=nrelation,
+            hidden_dim=args.hidden_dim,
+            gamma=args.gamma,
+            bias='learn'
+        ).to(device)
+    else:
+        model = KGEModel(
+            model_name=args.model,
+            nentity=nentity,
+            nrelation=nrelation,
+            hidden_dim=args.hidden_dim,
+            gamma=args.gamma,
+            double_entity_embedding=args.double_entity_embedding,
+            num_relation_embedding=args.num_relation_embedding
+        ).to(device)
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), 

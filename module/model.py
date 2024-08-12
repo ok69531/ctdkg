@@ -6,10 +6,13 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.init import xavier_normal_
 
 from torch_geometric.nn import RGCNConv
 
+from module.utils.euclidean import givens_rotations
+from module.utils.hyperbolic import mobius_add, expmap0, project, expmap1, logmap1, hyp_distance_multi_c
 # from module.compgcn_layer import CompGCNConv, CompGCNConvBasis
 
 
@@ -447,6 +450,126 @@ class ConvKB(nn.Module):
         
         return score
 
+
+# --------------------------------- GIE --------------------------------- #
+
+class GIE(nn.Module):
+    def __init__(self, nentity, nrelation, hidden_dim, gamma, bias):
+        super(GIE, self).__init__()
+
+        self.hidden_dim = hidden_dim
+        self.bias = bias
+        self.gamma = nn.Parameter(torch.Tensor([gamma]), requires_grad=False)
+        self.entity_embedding = nn.Embedding(nentity, hidden_dim)
+        self.relation_embedding = nn.Embedding(nrelation, hidden_dim)
+        self.bh = nn.Embedding(nentity, 1)
+        self.bt = nn.Embedding(nentity, 1)
+
+        self.c = nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
+        self.c1= nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
+        self.c2 = nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
+
+        self.rel_diag = nn.Embedding(nrelation, 2 * self.hidden_dim)
+        self.rel_diag1 = nn.Embedding(nrelation, self.hidden_dim)
+        self.rel_diag2 = nn.Embedding(nrelation, self.hidden_dim)
+        self.context_vec = nn.Embedding(nrelation, self.hidden_dim)
+        
+        self.bh.weight.data = torch.zeros((nentity, 1), dtype=torch.float)
+        self.bt.weight.data = torch.zeros((nentity, 1), dtype=torch.float)
+
+        self.entity_embedding.weight.data = 0.001 * torch.randn((nentity, self.hidden_dim), dtype=torch.float)
+        self.relation_embedding.weight.data = 0.001 * torch.randn((nrelation, 2 * self.hidden_dim), dtype=torch.float)
+        self.rel_diag.weight.data = 2 * torch.rand((nrelation, 2 * self.hidden_dim), dtype=torch.float) - 1.0
+        self.context_vec.weight.data = 0.001 * torch.randn((nrelation, self.hidden_dim), dtype=torch.float)
+        self.scale = torch.Tensor([1. / (self.hidden_dim**0.5)])
+
+    def similarity_score(self, lhs_e, rhs_e):
+        lhs_e, c = lhs_e
+        return - hyp_distance_multi_c(lhs_e, rhs_e, c, False) ** 2
+    
+    def score(self, lhs, rhs):
+        lhs_e, lhs_biases = lhs
+        rhs_e, rhs_biases = rhs
+        score = self.similarity_score(lhs_e, rhs_e)
+        if self.bias == 'constant':
+            return self.gamma.item() + score
+        elif self.bias == 'learn':
+            return lhs_biases + rhs_biases + score
+        else:
+            return score
+
+    def get_queries(self, head_idx, relation_idx):
+
+        c1 = F.softplus(self.c1[relation_idx])
+        head1 = expmap0(self.entity_embedding(head_idx), c1)
+        rel1, rel2 = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
+        rel1 = expmap0(rel1, c1)
+        rel2 = expmap0(rel2, c1)
+        lhs = project(mobius_add(head1, rel1, c1), c1)
+        res1 = givens_rotations(self.rel_diag1(relation_idx), lhs)
+        c2 = F.softplus(self.c2[relation_idx]) 
+        head2 = expmap1(self.entity_embedding(head_idx), c2)
+        rel1, rel2 = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
+        rel11 = expmap1(rel1, c2)
+        rel21= expmap1(rel2, c2)
+        lhss = project(mobius_add(head2, rel11, c2), c2)
+        res11 = givens_rotations(self.rel_diag2(relation_idx), lhss)
+        res1=logmap1(res1,c1)  
+        res11=logmap1(res11,c2) 
+        c = F.softplus(self.c[relation_idx])
+        
+        rot_mat, _ = torch.chunk(self.rel_diag(relation_idx), 2, dim=1)
+        rot_q = givens_rotations(rot_mat, self.entity_embedding(head_idx)).view((-1, 1, self.hidden_dim))
+        cands = torch.cat([res1.view(-1, 1, self.hidden_dim),res11.view(-1, 1, self.hidden_dim),rot_q], dim=1)
+        context_vec = self.context_vec(relation_idx).view((-1, 1, self.hidden_dim))
+        att_weights = torch.sum(context_vec * cands * self.scale, dim=-1, keepdim=True)
+        att_weights = nn.Softmax(dim=-1)(att_weights)
+        att_q = torch.sum(att_weights * cands, dim=1)
+        lhs = expmap0(att_q, c)
+        rel, _ = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
+        rel = expmap0(rel, c)
+        res = project(mobius_add(lhs, rel, c), c)
+        return (res, c), self.bh(head_idx)
+    
+    def forward(self, sample, mode='single'):
+        '''
+        Forward function that calculate the score of a batch of triples.
+        In the 'single' mode, sample is a batch of triple.
+        In the 'head-batch' or 'tail-batch' mode, sample consists two part.
+        The first part is usually the positive sample.
+        And the second part is the entities in the negative samples.
+        Because negative samples and positive samples usually share two elements 
+        in their triple ((head, relation) or (relation, tail)).
+        '''
+
+        if mode == 'single':
+            batch_size, negative_sample_size = sample.size(0), 1
+            
+            head_idx = sample[:,0]
+            relation_idx = sample[:,1]
+            tail_idx = sample[:,2]
+            
+        elif mode == 'head-batch':
+            tail_part, head_part = sample
+            batch_size, negative_sample_size = head_part.size(0), head_part.size(1)
+            
+            head_idx = head_part.view(-1)
+            relation_idx = tail_part[:, 1].repeat(negative_sample_size)
+            tail_idx = tail_part[:, 2].repeat(negative_sample_size)
+            
+        elif mode == 'tail-batch':
+            head_part, tail_part = sample
+            batch_size, negative_sample_size = tail_part.size(0), tail_part.size(1)
+            
+            head_idx = head_part[:, 0].repeat(negative_sample_size)
+            relation_idx = head_part[:, 1].repeat(negative_sample_size)
+            tail_idx = tail_part.view(-1)   
+        
+        lhs_e, lhs_biases = self.get_queries(head_idx, relation_idx)
+        rhs_e, rhs_biases = self.entity_embedding(tail_idx), self.bt(tail_idx)
+        score = self.score((lhs_e, lhs_biases), (rhs_e, rhs_biases))
+        
+        return score.view(-1, negative_sample_size)
 
 # --------------------------------- CompGCN --------------------------------- #
 # class CompGCNBase(nn.Module):
