@@ -290,6 +290,16 @@ def main():
     print('#valid: %d' % len(valid_triples['head']))
     print('#test: %d' % len(test_triples['head']))
 
+
+    if args.dataset in ['gd', 'cgd', 'cgpd', 'ctd']:
+        idx = random.sample(range(len(train_triples['head'])), int(len(train_triples['head'])*args.train_frac))
+
+        train_triples['head'] = train_triples['head'][idx]
+        train_triples['tail'] = train_triples['tail'][idx]
+        train_triples['relation'] = train_triples['relation'][idx]
+        train_triples['head_type'] = [train_triples['head_type'][i] for i in idx]
+        train_triples['tail_type'] = [train_triples['tail_type'][i] for i in idx]
+    
     train_count, train_true_head, train_true_tail = defaultdict(lambda: 4), defaultdict(list), defaultdict(list)
     for i in tqdm(range(len(train_triples['head']))):
         head, relation, tail = train_triples['head'][i].item(), train_triples['relation'][i].item(), train_triples['tail'][i].item()
@@ -373,15 +383,6 @@ def main():
     set_seed(args.seed)
     torch_geometric.seed_everything(args.seed)
     print(f'====================== run: {args.seed} ======================')
-
-    if args.dataset in ['gd', 'cgd', 'cgpd', 'ctd']:
-        idx = random.sample(range(len(train_triples['head'])), int(len(train_triples['head'])*args.train_frac))
-
-        train_triples['head'] = train_triples['head'][idx]
-        train_triples['tail'] = train_triples['tail'][idx]
-        train_triples['relation'] = train_triples['relation'][idx]
-        train_triples['head_type'] = [train_triples['head_type'][i] for i in idx]
-        train_triples['tail_type'] = [train_triples['tail_type'][i] for i in idx]
         
     train_dataloader_head = DataLoader(
         TrainDataset(train_triples, nentity, nrelation, 
