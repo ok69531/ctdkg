@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
-from module.model import KGEModel, GIE
+from module.model import KGEModel, GIE, HousE
 from module.set_seed import set_seed
 from module.argument import parse_args
 from module.dataset import LinkPredDataset, TrainDataset, TestDataset
@@ -56,7 +56,14 @@ def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
             else:
                 negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
 
-            positive_score = model(positive_sample)
+            if args.model.upper() == 'HOUSE':
+                if mode == 'head-batch':
+                    pos_part = positive_sample[:, 0].unsqueeze(dim=1)
+                else:
+                    pos_part = positive_sample[:, 2].unsqueeze(dim=1)
+                positive_score = model((positive_sample, pos_part), mode=mode)
+            else:
+                positive_score = model(positive_sample)
             positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
 
             if args.uni_weight:
@@ -286,7 +293,15 @@ def main():
             nrelation=nrelation,
             hidden_dim=args.hidden_dim,
             gamma=args.gamma,
-            bias='learn'
+            bias=args.bias, init_size=args.init_size
+        ).to(device)
+    if args.model.upper() == 'HOUSE':
+        model = HousE(
+            nentity=nentity,
+            nrelation=nrelation,
+            hidden_dim=args.hidden_dim,
+            gamma=args.gamma,
+            house_dim=args.house_dim, housd_num=args.housd_num, thred=args.thred
         ).to(device)
     else:
         model = KGEModel(
@@ -351,7 +366,7 @@ def main():
         #     f'{args.dataset}_{args.model}', 
         #     type='model',
         #     metadata=vars(args))
-        # artifact.add_file(f'{save_path}/{file_name}_epoch{epoch}')
+        # artifact.add_file(f'{save_path}/{file_name}_epoch{epoch}.pt')
         # wandb.log_artifact(artifact)
         
         if epoch % 10 == 0:

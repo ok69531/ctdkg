@@ -34,6 +34,13 @@ def parse_args(args=None):
                         help='Otherwise use subsampling weighting like in word2vec')
     parser.add_argument('-nl', '--negative_loss', action='store_true', 
                         help='use negative sampling loss to train ConvE')
+    # ---- GIE options ---- #
+    parser.add_argument("--init_size", default=1e-3, type=float, help="Initial embeddings' scale")
+    parser.add_argument("--bias", default="constant", type=str, choices=["constant", "learn", "none"], help="Bias type (none for no bias)")
+    # ---- HousE options ---- #
+    parser.add_argument('-hd', '--house_dim', default=2, type=int)
+    parser.add_argument('-dn', '--housd_num', default=1, type=int)
+    parser.add_argument('-th', '--thred', default=0.5, type=float)
     
     parser.add_argument('-lr', '--learning_rate', default=0.0001, type=float)
     parser.add_argument('-nw', '--num_workers', default=1, type = int)
