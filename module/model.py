@@ -65,7 +65,7 @@ class KGEModel(nn.Module):
             )
         
         #Do not forget to modify this line when you add a new model in the "forward" function
-        if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE']:
+        if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE', 'TripleRE']:
             raise ValueError('model %s not supported' % model_name)
             
         if model_name == 'RotatE' and (not double_entity_embedding or num_relation_embedding != 1):
@@ -76,6 +76,9 @@ class KGEModel(nn.Module):
         
         if model_name == 'HAKE' and (not double_entity_embedding or num_relation_embedding != 3):
             raise ValueError('HAKE should use --double_entity_embedding and --num_relation_embedding 3')
+        
+        if model_name == 'TripleRE' and (num_relation_embedding != 3):
+            raise ValueError('TripleRE should use --num_relation_embedding 3')
 
     def forward(self, sample, mode='single'):
         '''
@@ -162,6 +165,7 @@ class KGEModel(nn.Module):
             'ComplEx': self.ComplEx,
             'RotatE': self.RotatE,
             'HAKE': self.HAKE,
+            'TripleRE': self.TripleRE
         }
         
         if self.model_name in model_func:
@@ -267,6 +271,17 @@ class KGEModel(nn.Module):
         r_score = torch.norm(r_score, dim=2) * self.modulus_weight
 
         return self.gamma.item() - (phase_score + r_score)
+    
+    def TripleRE(self, head, relation, tail, mode):
+        re_head, re_mid, re_tail = torch.chunk(relation, 3, dim = 2)
+        
+        head = F.normalize(head, 2, -1)
+        tail = F.normalize(tail, 2, -1)
+        
+        score = head * re_head - tail * re_tail + re_mid
+        score = self.gamma.item() - torch.norm(score, p = 1, dim = 2)
+        
+        return score
 
 
 # --------------------------------- RGCN --------------------------------- #

@@ -72,6 +72,9 @@ Datasets: ```cd, cg-v1, cg-v2, gd, cgd, cgpd, ctd```
 python main.py --dataset=cd --model=TransE
 python main.py --dataset=cd --model=RotatE -double_entity_embedding
 python main.py --dataset=cd --model=HAKE --double_entity_embedding --num_relation_embedding=3
+python main.py --dataset=cd --model=GIE
+python main.py --dataset=cd --model=HOUSE
+python main.py --dataset=cd --model=TripleRE --num_relation_embedding=3
 
 # for semantic information models
 python main.py --dataset=cd --model=DistMult
