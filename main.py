@@ -359,9 +359,6 @@ def main():
             'best_mrr': best_val_mrr,
             'stopupdate': stopupdate}
 
-        file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}'
-        torch.save(check_points, f'{save_path}/{file_name}_epoch{epoch}.pt')
-        
         # artifact = wandb.Artifact(
         #     f'{args.dataset}_{args.model}', 
         #     type='model',
