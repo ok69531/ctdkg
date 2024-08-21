@@ -295,7 +295,7 @@ def main():
             gamma=args.gamma,
             bias=args.bias, init_size=args.init_size
         ).to(device)
-    if args.model.upper() == 'HOUSE':
+    elif args.model.upper() == 'HOUSE':
         model = HousE(
             nentity=nentity,
             nrelation=nrelation,
