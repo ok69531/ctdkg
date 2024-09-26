@@ -1,3 +1,4 @@
+import re
 import os
 from os import makedirs
 from os.path import isdir, isfile
@@ -347,7 +348,7 @@ def build_cg_graph(type, file_path = 'raw', save_path = 'processed/cg'):
         }
         data.num_nodes_dict.update({k: len(v) for k, v in gene_map.items()})
         data.edge_index_dict = {
-            k: torch.from_numpy(geneform_edge_index[k[-1]].values).to(torch.long) for k in edge_type_map.keys()
+            k: torch.from_numpy(geneform_edge_index[k[-1]].values.T).to(torch.long) for k in edge_type_map.keys()
         }
         data.edge_reltype = {
             rel: torch.full((edge.size(1), 1), fill_value = edge_type_map[rel]).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
@@ -365,7 +366,56 @@ def build_cg_graph(type, file_path = 'raw', save_path = 'processed/cg'):
         torch.save(chem_map, f'{save_path}/chem_map')
         torch.save(gene_map, f'{save_path}/gene_map')
         torch.save(edge_type_map, f'{save_path}/rel_type_map')
-
+    
+    elif type == 'v3':
+        df = chem_gene[[chem_col, gene_col]]
+        df['InteractionActions'] = chem_gene['InteractionActions'].map(lambda x: x.split('|'))
+        df = df.explode('InteractionActions').reset_index(drop = True).drop_duplicates()
+        df['InteractionActions'] = df['InteractionActions'].map(lambda x: re.sub(' ', '-', x))
+        
+        # mapping
+        uniq_rel = df['InteractionActions'].unique()
+        edge_type_map = {('chemical', f'chem_{rel}_gene', 'gene'): i for i, rel in enumerate(uniq_rel)}
+        
+        uniq_chem = df[chem_col].unique()
+        chem_map = {name: i for i, name in enumerate(uniq_chem)}
+        
+        uniq_gene = df[gene_col].unique()
+        gene_map = {name: i for i, name in enumerate(uniq_gene)}
+        
+        df[chem_col] = df[chem_col].apply(lambda x: chem_map[x])
+        df[gene_col] = df[gene_col].apply(lambda x: gene_map[x])
+        
+        rel_type_df_dict = {
+            rel: df[df['InteractionActions'] == rel][[chem_col, gene_col]] for rel in uniq_rel
+        }
+        
+        # data construction
+        data = Data()
+        data.num_nodes_dict = {
+            'chemical': len(chem_map),
+            'gene': len(gene_map)
+        }
+        data.edge_index_dict = {
+            ('chemical', f'chem_{rel}_gene', 'gene'): torch.from_numpy(rel_type_df_dict[rel].values.T).to(torch.long) for rel in uniq_rel
+        }
+        data.edge_reltype = {
+            rel: torch.full((edge.size(1), 1), fill_value=edge_type_map[rel]).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+        }
+        data.num_relations = len(uniq_rel)
+        
+        ### save mapping
+        save_path = save_path + '/v3'
+        if isdir(save_path):
+            pass
+        else:
+            makedirs(save_path)
+        
+        torch.save(data, f'{save_path}/cg-v3.pt')
+        torch.save(chem_map, f'{save_path}/chem_map')
+        torch.save(gene_map, f'{save_path}/gene_map')
+        torch.save(edge_type_map, f'{save_path}/rel_type_map')
+        
     print('Chemical-Gene Graph is successfully constructed.')
     
     return data, save_path
@@ -570,7 +620,7 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
 
     edge_type_map = {
         'gene_related_path': 0,
-        'path_related_gene': 1
+        # 'path_related_gene': 1
     }
 
     # mapping the chemical and disease id
@@ -585,7 +635,7 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     }
     data.edge_index_dict = {
         ('gene', 'gene_related_path', 'pathway'): torch.from_numpy(gene_path.values.T).to(torch.long),
-        ('pathway', 'path_related_gene', 'gene'): torch.from_numpy(gene_path.values.T[[1,0]]).to(torch.long),
+        ('pathway', 'gene_related_path', 'gene'): torch.from_numpy(gene_path.values.T[[1,0]]).to(torch.long),
     }
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
@@ -720,9 +770,9 @@ def build_ggo_graph(file_path = 'raw', save_path = 'processed/ggo'):
         'gene_biological_go': 0,
         'gene_cellular_go': 1,
         'gene_molecular_go': 2,
-        'go_biological_gene': 3,
-        'go_cellular_gene': 4,
-        'go_molecular_gene': 5
+        # 'go_biological_gene': 3,
+        # 'go_cellular_gene': 4,
+        # 'go_molecular_gene': 5
     }
 
     # mapping the chemical and gene ontology id
@@ -742,11 +792,11 @@ def build_ggo_graph(file_path = 'raw', save_path = 'processed/ggo'):
     }
     data.edge_index_dict = {
         ('gene', 'gene_biological_go', 'gene_ontology'): torch.from_numpy(biological_gene_go.values.T).to(torch.long),
-        ('gene_ontology', 'go_biological_gene', 'gene'): torch.from_numpy(biological_gene_go.values.T[[1,0]]).to(torch.long),
+        ('gene_ontology', 'gene_biological_go', 'gene'): torch.from_numpy(biological_gene_go.values.T[[1,0]]).to(torch.long),
         ('gene', 'gene_cellular_go', 'gene_ontology'): torch.from_numpy(cellular_gene_go.values.T).to(torch.long),
-        ('gene_ontology', 'go_cellular_gene', 'gene'): torch.from_numpy(cellular_gene_go.values.T[[1,0]]).to(torch.long),
+        ('gene_ontology', 'gene_cellular_go', 'gene'): torch.from_numpy(cellular_gene_go.values.T[[1,0]]).to(torch.long),
         ('gene', 'gene_molecular_go', 'gene_ontology'): torch.from_numpy(molecular_gene_go.values.T).to(torch.long),
-        ('gene_ontology', 'go_molecular_gene', 'gene'): torch.from_numpy(molecular_gene_go.values.T[[1,0]]).to(torch.long)
+        ('gene_ontology', 'gene_molecular_go', 'gene'): torch.from_numpy(molecular_gene_go.values.T[[1,0]]).to(torch.long)
     }
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
@@ -789,7 +839,7 @@ def build_gpheno_graph(file_path = 'raw/gene_phenotype', save_path = 'processed/
 
     edge_type_map = {
         'gene_related_pheno': 0,
-        'pheno_related_gene': 1
+        # 'pheno_related_gene': 1
     }
 
     # mapping the phenotype and disease id
@@ -803,7 +853,7 @@ def build_gpheno_graph(file_path = 'raw/gene_phenotype', save_path = 'processed/
     }
     data.edge_index_dict = {
         ('gene', 'gene_related_pheno', 'phenotype'): torch.from_numpy(gene_pheno.values.T).to(torch.long),
-        ('phenotype', 'pheno_related_gene', 'gene'): torch.from_numpy(gene_pheno.values.T[[1, 0]]).to(torch.long)
+        ('phenotype', 'gene_related_pheno', 'gene'): torch.from_numpy(gene_pheno.values.T[[1, 0]]).to(torch.long)
     }
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
@@ -846,7 +896,7 @@ def build_dpheno_graph(file_path = 'raw/disease_phenotype', save_path = 'process
 
     edge_type_map = {
         'dis_related_pheno': 0,
-        'pheno_related_dis': 1
+        # 'pheno_related_dis': 1
     }
 
     # mapping the phenotype and disease id
@@ -860,7 +910,7 @@ def build_dpheno_graph(file_path = 'raw/disease_phenotype', save_path = 'process
     }
     data.edge_index_dict = {
         ('disease', 'dis_related_pheno', 'phenotype'): torch.from_numpy(dis_pheno.values.T).to(torch.long),
-        ('phenotype', 'pheno_related_dis', 'disease'): torch.from_numpy(dis_pheno.values.T[[1, 0]]).to(torch.long)
+        ('phenotype', 'dis_related_pheno', 'disease'): torch.from_numpy(dis_pheno.values.T[[1, 0]]).to(torch.long)
     }
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
@@ -899,7 +949,7 @@ def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
 
     edge_type_map = {
         'dis_related_path': 0, 
-        'path_related_dis': 1, 
+        # 'path_related_dis': 1, 
     }
 
     # mapping the chemical and disease id
@@ -914,7 +964,7 @@ def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
     }
     data.edge_index_dict = {
         ('disease', 'dis_related_path', 'pathway'): torch.from_numpy(dis_path.values.T).to(torch.long),
-        ('pathway', 'path_related_dis', 'disease'): torch.from_numpy(dis_path.values.T[[1,0]]).to(torch.long),
+        ('pathway', 'dis_related_path', 'disease'): torch.from_numpy(dis_path.values.T[[1,0]]).to(torch.long),
     }
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
@@ -966,11 +1016,11 @@ def build_dgo_graph(file_path = 'raw', save_path = 'processed/dgo'):
 
     edge_type_map = {
         'go_biological_dis': 0,
-        'dis_biological_go': 1,
-        'go_cellular_dis': 2,
-        'dis_cellular_go': 3,
-        'go_molecular_dis': 4,
-        'dis_molecular_go': 5
+        # 'dis_biological_go': 1,
+        'go_cellular_dis': 1,
+        # 'dis_cellular_go': 3,
+        'go_molecular_dis': 2,
+        # 'dis_molecular_go': 5
     }
 
     # mapping the phenotype and disease id
@@ -990,11 +1040,11 @@ def build_dgo_graph(file_path = 'raw', save_path = 'processed/dgo'):
     }
     data.edge_index_dict = {
         ('gene_ontology', 'go_biological_dis', 'disease'): torch.from_numpy(biological_pheno_dis.values.T).to(torch.long),
-        ('disease', 'dis_biological_go', 'gene_ontology'): torch.from_numpy(biological_pheno_dis.values.T[[1,0]]).to(torch.long),
+        ('disease', 'go_biological_dis', 'gene_ontology'): torch.from_numpy(biological_pheno_dis.values.T[[1,0]]).to(torch.long),
         ('gene_ontology', 'go_cellular_dis', 'disease'): torch.from_numpy(cellular_pheno_dis.values.T).to(torch.long),
-        ('disease', 'dis_cellular_go', 'gene_ontology'): torch.from_numpy(cellular_pheno_dis.values.T[[1,0]]).to(torch.long),
+        ('disease', 'go_cellular_dis', 'gene_ontology'): torch.from_numpy(cellular_pheno_dis.values.T[[1,0]]).to(torch.long),
         ('gene_ontology', 'go_molecular_dis', 'disease'): torch.from_numpy(molecular_pheno_dis.values.T).to(torch.long),
-        ('disease', 'dis_molecular_go', 'gene_ontology'): torch.from_numpy(molecular_pheno_dis.values.T[[1,0]]).to(torch.long),
+        ('disease', 'go_molecular_dis', 'gene_ontology'): torch.from_numpy(molecular_pheno_dis.values.T[[1,0]]).to(torch.long),
     }
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
@@ -1016,130 +1066,81 @@ def build_dgo_graph(file_path = 'raw', save_path = 'processed/dgo'):
     return data, save_path
 
 
-def build_cgd_graph(file_path = 'raw', save_path = 'processed/cgd'):
+def build_cgd_graph(file_path = 'processed', save_path = 'processed/cgd'):
     print('This procedure may be time-consuming ...')
     print('>>> Processing Chemical-Gene-Disease Data ...')
     print('----------------------------------------------------------------------------')
     
-    chem_dis_tmp = pd.read_csv(f'{file_path}/CTD_chemicals_diseases.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
-    chem_gene_tmp = pd.read_csv(f'{file_path}/CTD_chem_gene_ixns.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
-    gene_dis_tmp = pd.read_csv(f'{file_path}/CTD_genes_diseases.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
-
-    ### delete data which have 'therapeutic' DirectEvidence
-    cd_thera_idx = chem_dis_tmp.DirectEvidence == 'therapeutic'
-    chem_dis = chem_dis_tmp[~cd_thera_idx]
-    del chem_dis_tmp
+    # needs: cg, cd, gd
     
-    gd_thera_idx = gene_dis_tmp.DirectEvidence == 'therapeutic'
-    gene_dis = gene_dis_tmp[~gd_thera_idx]
-    del gene_dis_tmp
+    # chemical
+    cg_data = torch.load(f'{file_path}/cg/v1/cg-v1.pt')
+    cg_chem_map = torch.load(f'{file_path}/cg/v1/chem_map')
+    cg_gene_map = torch.load(f'{file_path}/cg/v1/gene_map')
     
-    # delete data which are not specified the organism
-    org_na_idx = chem_gene_tmp['Organism'].isna()
-    geneform_na_idx = chem_gene_tmp['GeneForms'].isna()
-    chem_gene = chem_gene_tmp[~(org_na_idx|geneform_na_idx)]
-    del chem_gene_tmp
+    cd_data = torch.load(f'{file_path}/cd/cd.pt')
+    cd_chem_map = torch.load(f'{file_path}/cd/chem_map')
+    cd_dis_map = torch.load(f'{file_path}/cd/dis_map')
     
-    ### curated (DirectEvidence: marker/mechanism) edge index
-    # chemical-disease
-    curated_chem_dis = chem_dis[~chem_dis.DirectEvidence.isna()][[chem_col, dis_col]]
-    dir_cd_dup_num = curated_chem_dis.duplicated(keep = False).sum()
-    if dir_cd_dup_num != 0:
-        raise ValueError(f'Duplicated direct evidence of chem-dis: {dir_cd_dup_num}')
-    else: 
-        print(f'Number of duplicated DirectEvidence of chem-dis: {dir_cd_dup_num}')
+    # gene
+    gd_data = torch.load(f'{file_path}/gd/gd.pt')
+    gd_gene_map = torch.load(f'{file_path}/gd/gene_map')
+    gd_dis_map = torch.load(f'{file_path}/gd/dis_map')
     
-    # gene-disease
-    curated_gene_dis = gene_dis[~gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
-    dir_gd_dup_num = curated_gene_dis.duplicated(keep = False).sum()
-    if dir_gd_dup_num != 0:
-        raise ValueError(f'Duplicated direct evidence of gene-dis: {dir_gd_dup_num}')
-    else: 
-        print(f'Number of duplicated DirectEvidence of gene-dis: {dir_gd_dup_num}')
-    
-    ### inferred edge index
-    # (c, d) pairs which have DirectEvidence and Inferred Relation
-    dup_chem_dis_idx = chem_dis[[chem_col, dis_col]].duplicated(keep = False)
-    dup_chem_dis = chem_dis[dup_chem_dis_idx]
-    dup_dir_chem_dis = dup_chem_dis[~dup_chem_dis.DirectEvidence.isna()][[chem_col, dis_col]]
-    # (c, d) pairs which have Inferred Relation and drops duplicate
-    inferred_chem_dis = chem_dis[chem_dis.DirectEvidence.isna()][[chem_col, dis_col]]
-    inferred_chem_dis = inferred_chem_dis.drop_duplicates()
-    # merge dup_dir_chem_dis and drop which duplicated
-    inferred_chem_dis = pd.concat([dup_dir_chem_dis, inferred_chem_dis])
-    inferred_chem_dis = inferred_chem_dis.drop_duplicates(keep = False)
-    
-    # (g, d) pairs which have DirecEvidence and Inferred Relation
-    dup_gene_dis_idx = gene_dis[[gene_col, dis_col]].duplicated(keep = False)
-    dup_gene_dis = gene_dis[dup_gene_dis_idx]
-    dup_dir_gene_dis = dup_gene_dis[~dup_gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
-    # (g, d) pairs which have Inferred Relation and drops duplicate
-    inferred_gene_dis = gene_dis[gene_dis.DirectEvidence.isna()][[gene_col, dis_col]]
-    inferred_gene_dis = inferred_gene_dis.drop_duplicates()
-    # merge dup_dir_chem_dis and drop which duplicated
-    inferred_gene_dis = pd.concat([dup_dir_gene_dis, inferred_gene_dis])
-    inferred_gene_dis = inferred_gene_dis.drop_duplicates(keep = False)
-    
-    # (c, g)
-    inferred_chem_gene = chem_gene[[chem_col, gene_col]].drop_duplicates()
-    
-    ### build graph
-    # mapping of unique chemical, disease, and gene
-    uniq_chem = pd.concat([chem_dis[chem_col], chem_gene[chem_col]]).unique()
+    # mapping
+    uniq_chem = set(list(cg_chem_map.keys()) + list(cd_chem_map.keys()))
     chem_map = {name: i for i, name in enumerate(uniq_chem)}
-
-    uniq_dis = pd.concat([chem_dis[dis_col], gene_dis[dis_col]]).unique()
+    
+    uniq_gene = set(list(cg_gene_map.keys()) + list(gd_gene_map.keys()))
+    gene_map = {name: i for i, name in enumerate(uniq_gene)}
+    
+    uniq_dis = set(list(cd_dis_map.keys()) + list(gd_dis_map.keys()))
     dis_map = {name: i for i, name in enumerate(uniq_dis)}
     
-    uniq_gene = pd.concat([chem_gene[gene_col], gene_dis[gene_col]]).unique()
-    gene_map = {name: i for i, name in enumerate(uniq_gene)}
-
-    del chem_dis
-    del chem_gene
-    del gene_dis
-
-    edge_type_map = {
-        'chem_curated_dis': 0,
-        'chem_inferred_dis': 1,
-        'gene_curated_dis': 2,
-        'gene_inferred_dis': 3,
-        'chem_inferred_gene': 4
-    }
-
-    # mapping the chemical and disease id
-    curated_chem_dis[chem_col] = curated_chem_dis[chem_col].apply(lambda x: chem_map[x])
-    curated_chem_dis[dis_col] = curated_chem_dis[dis_col].apply(lambda x: dis_map[x])
-
-    inferred_chem_dis[chem_col] = inferred_chem_dis[chem_col].apply(lambda x: chem_map[x])
-    inferred_chem_dis[dis_col] = inferred_chem_dis[dis_col].apply(lambda x: dis_map[x])
+    data_list = [cg_data, cd_data, gd_data]
+    rel_type_list = [list(data.edge_index_dict.keys()) for data in data_list]
+    rel_type_list = list(itertools.chain(*rel_type_list))
+    edge_type_map = {r: i for i, (h, r, t) in enumerate(rel_type_list)}
     
-    curated_gene_dis[gene_col] = curated_gene_dis[gene_col].apply(lambda x: gene_map[x])
-    curated_gene_dis[dis_col] = curated_gene_dis[dis_col].apply(lambda x: dis_map[x])
-
-    inferred_gene_dis[gene_col] = inferred_gene_dis[gene_col].apply(lambda x: gene_map[x])
-    inferred_gene_dis[dis_col] = inferred_gene_dis[dis_col].apply(lambda x: dis_map[x])
-
-    inferred_chem_gene[chem_col] = inferred_chem_gene[chem_col].apply(lambda x: chem_map[x])
-    inferred_chem_gene[gene_col] = inferred_chem_gene[gene_col].apply(lambda x: gene_map[x])
-    
-
+    # data construction
     data = Data()
     data.num_nodes_dict = {
         'chemical': len(chem_map),
         'gene': len(gene_map),
         'disease': len(dis_map)
     }
-    data.edge_index_dict = {
-        ('chemical', 'chem_curated_dis', 'disease'): torch.from_numpy(curated_chem_dis.values.T).to(torch.long),
-        ('chemical', 'chem_inferred_dis', 'disease'): torch.from_numpy(inferred_chem_dis.values.T).to(torch.long),
-        ('gene', 'gene_curated_dis', 'disease'): torch.from_numpy(curated_gene_dis.values.T).to(torch.long),
-        ('gene', 'gene_inferred_dis', 'disease'): torch.from_numpy(inferred_gene_dis.values.T).to(torch.long),
-        ('chemical', 'chem_inferred_gene', 'gene'): torch.from_numpy(inferred_chem_gene.values.T).to(torch.long),
-    }
+    
+    edge_index_list = [list(data.edge_index_dict.items()) for data in data_list]
+    edge_index_list = list(itertools.chain(*edge_index_list))
+    edge_index_dict = {rel: idx for (rel, idx) in edge_index_list}
+    
+    print('Converting edge_index')
+    for (h, r, t) in tqdm(edge_index_dict.keys()):
+        if (h == 'chemical') & (t == 'gene'):
+            old_hmap = cg_chem_map; old_tmap = cg_gene_map
+            new_hmap = chem_map; new_tmap = gene_map
+        elif (h == 'chemical') & (t == 'disease'):
+            old_hmap = cd_chem_map; old_tmap = cd_dis_map
+            new_hmap = chem_map; new_tmap = dis_map
+        elif (h == 'gene') & (t == 'disease'):
+            old_hmap = gd_gene_map; old_tmap = gd_dis_map
+            new_hmap = gene_map; new_tmap = dis_map
+        
+        heads, tails = edge_index_dict[(h, r, t)].numpy()
+        # mapping id to entity id
+        head_ids = np.array(list(old_hmap.keys()))[heads]
+        tail_ids = np.array(list(old_tmap.keys()))[tails]
+        # entity id to new mapping id
+        new_heads = np.array(list(map(lambda x: new_hmap[x], head_ids)))
+        new_tails = np.array(list(map(lambda x: new_tmap[x], tail_ids)))
+        
+        edge_index_dict[(h, r, t)] = torch.from_numpy(np.stack([new_heads, new_tails])).to(torch.long)
+    
+    data.edge_index_dict =  edge_index_dict
     data.edge_reltype = {
-        (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
+        (h ,r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
     
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -1253,7 +1254,7 @@ def build_cgpd_graph(file_path = 'processed', save_path = 'processed/cgpd'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
 
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -1429,7 +1430,7 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
 
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -1461,6 +1462,8 @@ def build_benchmarks(data_type, train_frac, valid_frac):
         data, save_path = build_cg_graph('v1')
     elif data_type == 'cg-v2':
         data, save_path = build_cg_graph('v2')
+    elif data_type == 'cg-v3':
+        data, save_path = build_cg_graph('v3')
     elif data_type == 'cpath':
         data, save_path = build_cpath_graph()
     elif data_type == 'cpheno':
@@ -1547,6 +1550,7 @@ if __name__ == '__main__':
     build_benchmarks('cd', 0.9, 0.05)
     build_benchmarks('cg-v1', 0.9, 0.05)
     build_benchmarks('cg-v2', 0.9, 0.05)
+    build_benchmarks('cg-v3', 0.9, 0.05)
     build_benchmarks('gd', 0.98, 0.01)
     build_benchmarks('cgd', 0.98, 0.01)
     build_benchmarks('cgpd', 0.98, 0.01)
