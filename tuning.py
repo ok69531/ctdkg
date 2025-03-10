@@ -167,44 +167,48 @@ def evaluate(model, head_loader, tail_loader, args):
     return test_logs
 
 
+dataset = LinkPredDataset(args.dataset)
+data = dataset[0]
+train_triples, valid_triples, test_triples = dataset.get_edge_split()
+
+nrelation = data.num_relations
+entity_dict = dict()
+cur_idx = 0
+for key in data['num_nodes_dict']:
+    entity_dict[key] = (cur_idx, cur_idx + data['num_nodes_dict'][key])
+    cur_idx += data['num_nodes_dict'][key]
+nentity = sum(data['num_nodes_dict'].values())
+
+args.nentity = nentity
+args.nrelation = nrelation
+
+print('Model: %s' % args.model)
+print('Dataset: %s' % args.dataset)
+print('#entity: %d' % nentity)
+print('#relation: %d' % nrelation)
+
+print('#train: %d' % len(train_triples['head']))
+print('#valid: %d' % len(valid_triples['head']))
+print('#test: %d' % len(test_triples['head']))
+
+train_count, train_true_head, train_true_tail = defaultdict(lambda: 4), defaultdict(list), defaultdict(list)
+for i in tqdm(range(len(train_triples['head']))):
+    head, relation, tail = train_triples['head'][i].item(), train_triples['relation'][i].item(), train_triples['tail'][i].item()
+    head_type, tail_type = train_triples['head_type'][i], train_triples['tail_type'][i]
+    train_count[(head, relation, head_type)] += 1
+    train_count[(tail, -relation-1, tail_type)] += 1
+    train_true_head[(relation, tail)].append(head)
+    train_true_tail[(head, relation)].append(tail)
+
+
 def main():
     wandb.init()
     
     args.learning_rate = wandb.config.lr
     args.gamma = wandb.config.gamma
     
-    dataset = LinkPredDataset(args.dataset)
-    data = dataset[0]
-    train_triples, valid_triples, test_triples = dataset.get_edge_split()
-    
-    nrelation = data.num_relations
-    entity_dict = dict()
-    cur_idx = 0
-    for key in data['num_nodes_dict']:
-        entity_dict[key] = (cur_idx, cur_idx + data['num_nodes_dict'][key])
-        cur_idx += data['num_nodes_dict'][key]
-    nentity = sum(data['num_nodes_dict'].values())
-
-    args.nentity = nentity
-    args.nrelation = nrelation
-
-    print('Model: %s' % args.model)
-    print('Dataset: %s' % args.dataset)
-    print('#entity: %d' % nentity)
-    print('#relation: %d' % nrelation)
-
-    print('#train: %d' % len(train_triples['head']))
-    print('#valid: %d' % len(valid_triples['head']))
-    print('#test: %d' % len(test_triples['head']))
-
-    train_count, train_true_head, train_true_tail = defaultdict(lambda: 4), defaultdict(list), defaultdict(list)
-    for i in tqdm(range(len(train_triples['head']))):
-        head, relation, tail = train_triples['head'][i].item(), train_triples['relation'][i].item(), train_triples['tail'][i].item()
-        head_type, tail_type = train_triples['head_type'][i], train_triples['tail_type'][i]
-        train_count[(head, relation, head_type)] += 1
-        train_count[(tail, -relation-1, tail_type)] += 1
-        train_true_head[(relation, tail)].append(head)
-        train_true_tail[(head, relation)].append(tail)
+    set_seed(args.seed)
+    print(f'====================== run: {args.seed} ======================')
     
     random_sampling = False
     # validation loader
@@ -258,18 +262,6 @@ def main():
         num_workers = args.num_workers,
         collate_fn = TestDataset.collate_fn
     )
-
-    set_seed(args.seed)
-    print(f'====================== run: {args.seed} ======================')
-
-    if args.dataset in ['gd', 'cgd', 'cgpd', 'ctd']:
-        idx = random.sample(range(len(train_triples['head'])), int(len(train_triples['head'])*args.train_frac))
-
-        train_triples['head'] = train_triples['head'][idx]
-        train_triples['tail'] = train_triples['tail'][idx]
-        train_triples['relation'] = train_triples['relation'][idx]
-        train_triples['head_type'] = [train_triples['head_type'][i] for i in idx]
-        train_triples['tail_type'] = [train_triples['tail_type'][i] for i in idx]
 
     
     train_dataloader_head = DataLoader(
