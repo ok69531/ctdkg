@@ -376,4 +376,4 @@ def main():
     for metric in test_metrics.keys():
         print(f'{metric}: {test_metrics[metric]:.5f}')
     
-wandb.agent(sweep_id = sweep_id, function = main, count = 150)
+wandb.agent(sweep_id = sweep_id, function = main, count = 30)
