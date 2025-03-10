@@ -35,7 +35,7 @@ sweep_configuration = {
     'name': 'sweep',
     'metric': {'goal': 'maximize', 'name': 'Valid MRR'},
     'parameters':{
-        'lr': {'values': [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]},
+        'lr': {'values': [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001]},
         'gamma': {'values': [1, 4, 8, 10, 30, 50]},
         'model': {'values': [args.model]}
     }
@@ -310,7 +310,7 @@ def main():
     init_epoch = 1
     best_val_mrr = 0
     stopupdate = 0
-    args.num_epoch = 5
+    args.num_epoch = 3
     
     
     for epoch in range(init_epoch, args.num_epoch + 1):
@@ -329,7 +329,7 @@ def main():
             'Train loss': train_losses['loss']
         })
         
-        if epoch % 5 == 0:
+        if epoch % 3 == 0:
             valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
             valid_metrics = {}
             for metric in valid_logs:

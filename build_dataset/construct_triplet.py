@@ -207,7 +207,7 @@ def build_cd_graph(file_path = 'raw', save_path = 'processed/cd'):
         ('chemical', 'chem_inferred_dis', 'disease'): torch.from_numpy(inferred_chem_dis.values.T).to(torch.long),
     }
     data.edge_reltype = {
-        rel: torch.full((edge.size(1), 1), fill_value = i).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+        (h, r, t): torch.full((edge.size(1), 1), fill_value = edge_type_map[r]).to(torch.long) for (h ,r ,t), edge in data.edge_index_dict.items()
     }
     data.num_relations = len(data.edge_index_dict)
     
@@ -247,7 +247,7 @@ def build_cg_graph(file_path = 'raw', save_path = 'processed/cg'):
     
     # mapping
     uniq_rel = df['InteractionActions'].unique()
-    edge_type_map = {('chemical', f'chem_{rel}_gene', 'gene'): i for i, rel in enumerate(uniq_rel)}
+    edge_type_map = {f'chem_{rel}_gene': i for i, rel in enumerate(uniq_rel)}
     
     uniq_chem = df[chem_col].unique()
     chem_map = {name: i for i, name in enumerate(uniq_chem)}
@@ -272,7 +272,7 @@ def build_cg_graph(file_path = 'raw', save_path = 'processed/cg'):
         ('chemical', f'chem_{rel}_gene', 'gene'): torch.from_numpy(rel_type_df_dict[rel].values.T).to(torch.long) for rel in uniq_rel
     }
     data.edge_reltype = {
-        rel: torch.full((edge.size(1), 1), fill_value=edge_type_map[rel]).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+        (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]).to(torch.long) for (h, r, t), edge in data.edge_index_dict.items()
     }
     data.num_relations = len(uniq_rel)
     
@@ -381,7 +381,7 @@ def build_cpath_graph(file_path = 'raw', save_path = 'processed/cpath'):
         ('chemical', 'chem_associated_path', 'pathway'): torch.from_numpy(chem_path.values.T).to(torch.long),
     }
     data.edge_reltype = {
-        rel: torch.full((edge.size(1), 1), fill_value = i).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+        (h, r, t): torch.full((edge.size(1), 1), fill_value = edge_type_map[r]).to(torch.long) for (h, r, t), edge in data.edge_index_dict.items()
     }
     data.num_relations = len(data.edge_index_dict)
     
@@ -592,7 +592,7 @@ def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
         ('gene', 'gene_inferred_dis', 'disease'): torch.from_numpy(inferred_gene_dis.values.T).to(torch.long),
     }
     data.edge_reltype = {
-        rel: torch.full((edge.size(1), 1), fill_value = i).to(torch.long) for i, (rel, edge) in enumerate(data.edge_index_dict.items())
+        (h, r, t): torch.full((edge.size(1), 1), fill_value = edge_type_map[r]).to(torch.long) for (h, r, t), edge in data.edge_index_dict.items()
     }
     data.num_relations = len(data.edge_index_dict)
     
@@ -1326,18 +1326,19 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 
 
 if __name__ == '__main__':
-    # build_cpheno_graph()
-    # build_cpath_graph()
-    # build_cgo_graph()
-    # build_gd_graph()
-    # build_gpheno_graph()
-    # build_gpath_graph()
-    # build_ggo_graph()
+    build_cg_graph()
+    build_cpheno_graph()
+    build_cpath_graph()
+    build_cgo_graph()
+    build_gd_graph()
+    build_gpheno_graph()
+    build_gpath_graph()
+    build_ggo_graph()
     build_dpheno_graph()
-    # build_dpath_graph()
-    # build_benchmarks('cd', 0.9, 0.05)
+    build_dpath_graph()
+    build_benchmarks('cd', 0.9, 0.05)
     # build_benchmarks('cg', 0.9, 0.05)
     # build_benchmarks('gd', 0.98, 0.01)
-    # build_benchmarks('cgd', 0.98, 0.01)
+    build_benchmarks('cgd', 0.98, 0.01)
     build_benchmarks('cgpd', 0.98, 0.01)
     build_benchmarks('ctd', 0.98, 0.01)
