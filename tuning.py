@@ -30,17 +30,13 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'cuda is available: {torch.cuda.is_available()}')
 
 wandb.login(key = open('module/wandb_key.txt', 'r').readline())
-# wandb.init(project = f'ctdkg-{args.dataset}-tuning', entity = 'soyoung')
-# wandb.run.name = f'{args.model}'
-# wandb.run.save()
-# wandb.config.update(args)
 sweep_configuration = {
     'method': 'grid',
     'name': 'sweep',
     'metric': {'goal': 'maximize', 'name': 'Valid MRR'},
     'parameters':{
-        'lr': {'values': [0.001]},
-        'gamma': {'values': [10, 5, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001]},
+        'lr': {'values': [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001]},
+        'gamma': {'values': [1, 4, 8, 10, 30, 50]},
         'model': {'values': [args.model]}
     }
 }
