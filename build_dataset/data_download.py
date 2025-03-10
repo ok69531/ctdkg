@@ -58,18 +58,24 @@ def download_ctd_data(url_map, local_path):
     print(f'>>> Downloading CTD data files')
     print('----------------------------------------------------------------------------')
 
-    for url in url_map.values():
-        file_name = url.split('/')[-1]
+    update_all = input('Do you want to update all existing files? (yes/no): ').strip().lower()
+    if update_all == 'yes':
+        update_all_files = True
+    else:
+        update_all_files = False
     
-        if local_path == '':
-            file_path = file_name
-        else:
-            file_path = f'{local_path}/{file_name}'
+    if update_all_files:
+        for url in url_map.values():
+            file_name = url.split('/')[-1]
         
-        if isfile(file_path):
-            print(f'Already existed: {file_name}')
-        else:
+            if local_path == '':
+                file_path = file_name
+            else:
+                file_path = f'{local_path}/{file_name}'
+            
             download_file(url, local_path, file_name)
+    
+    else: print(f'Skipping update for: {file_name}')
     
     print('----------------------------------------------------------------------------')
 

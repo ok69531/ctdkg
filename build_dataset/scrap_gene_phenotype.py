@@ -13,11 +13,14 @@ from urllib.request import urlretrieve
 gene_df = pd.read_csv('raw/CTD_genes.csv.gz', skiprows=list(range(27))+[28], compression='gzip')
 gene_ids = gene_df.GeneID
 
+
 save_dir = 'raw/gene_phenotype'
 if os.path.isdir(save_dir):
     pass
 else:
     os.makedirs(save_dir)
+
+session = requests.Session()
 
 passed_gene_num = 0
 for i in tqdm(range(len(gene_ids))):
@@ -25,7 +28,7 @@ for i in tqdm(range(len(gene_ids))):
         gene_id = gene_ids[i]
         url = f'https://ctdbase.org/detail.go?type=gene&acc={gene_id}&view=phenotype'
 
-        req = requests.get(url)
+        req = session.get(url)
         soup = BeautifulSoup(req.text, 'html.parser')
 
         pheno_table = soup.find(id = 'phenotypeIxnTable')
@@ -48,3 +51,5 @@ for i in tqdm(range(len(gene_ids))):
     except requests.exceptions.ConnectTimeout:
         print('timeout', url)
         pass
+
+print(f'# Skipped Genes: {passed_gene_num}')

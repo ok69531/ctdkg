@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
-from module.model import KGEModel, GIE, HousE
+from module.model import KGEModel
 from module.set_seed import set_seed
 from module.argument import parse_args
 from module.dataset import LinkPredDataset, TrainDataset, TestDataset
@@ -34,6 +34,7 @@ wandb.init(project = f'ctdkg', entity = 'soyoung')
 wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 wandb.run.save()
 wandb.config.update(args)
+
 
 def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
     model.train()
@@ -187,7 +188,6 @@ def main():
     print('#test: %d' % len(test_triples['head']))
 
     train_count, train_true_head, train_true_tail = defaultdict(lambda: 4), defaultdict(list), defaultdict(list)
-    #!TODO tqdm description
     for i in tqdm(range(len(train_triples['head']))):
         head, relation, tail = train_triples['head'][i].item(), train_triples['relation'][i].item(), train_triples['tail'][i].item()
         head_type, tail_type = train_triples['head_type'][i], train_triples['tail_type'][i]
@@ -287,32 +287,32 @@ def main():
     )
     
     # Set training configuration
-    if args.model.upper() == 'GIE':
-        model = GIE(
-            nentity=nentity,
-            nrelation=nrelation,
-            hidden_dim=args.hidden_dim,
-            gamma=args.gamma,
-            bias=args.bias, init_size=args.init_size
-        ).to(device)
-    elif args.model.upper() == 'HOUSE':
-        model = HousE(
-            nentity=nentity,
-            nrelation=nrelation,
-            hidden_dim=args.hidden_dim,
-            gamma=args.gamma,
-            house_dim=args.house_dim, housd_num=args.housd_num, thred=args.thred
-        ).to(device)
-    else:
-        model = KGEModel(
-            model_name=args.model,
-            nentity=nentity,
-            nrelation=nrelation,
-            hidden_dim=args.hidden_dim,
-            gamma=args.gamma,
-            double_entity_embedding=args.double_entity_embedding,
-            num_relation_embedding=args.num_relation_embedding
-        ).to(device)
+    # if args.model.upper() == 'GIE':
+    #     model = GIE(
+    #         nentity=nentity,
+    #         nrelation=nrelation,
+    #         hidden_dim=args.hidden_dim,
+    #         gamma=args.gamma,
+    #         bias=args.bias, init_size=args.init_size
+    #     ).to(device)
+    # elif args.model.upper() == 'HOUSE':
+    #     model = HousE(
+    #         nentity=nentity,
+    #         nrelation=nrelation,
+    #         hidden_dim=args.hidden_dim,
+    #         gamma=args.gamma,
+    #         house_dim=args.house_dim, housd_num=args.housd_num, thred=args.thred
+    #     ).to(device)
+    # else:
+    model = KGEModel(
+        model_name=args.model,
+        nentity=nentity,
+        nrelation=nrelation,
+        hidden_dim=args.hidden_dim,
+        gamma=args.gamma,
+        num_entity_embedding=args.num_entity_embedding,
+        num_relation_embedding=args.num_relation_embedding
+    ).to(device)
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), 
@@ -426,7 +426,7 @@ def main():
                 
             else:
                 stopupdate += 1
-                if stopupdate > 3:
+                if stopupdate > 2:
                     print(f'early stop at eopch {epoch}')
                     break
                 

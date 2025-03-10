@@ -18,7 +18,7 @@ from module.utils.hyperbolic import mobius_add, expmap0, project, expmap1, logma
 
 class KGEModel(nn.Module):
     def __init__(self, model_name, nentity, nrelation, hidden_dim, gamma,
-                 double_entity_embedding=False, num_relation_embedding=1):
+                 num_entity_embedding=1, num_relation_embedding=1):
         super(KGEModel, self).__init__()
         self.model_name = model_name
         self.nentity = nentity
@@ -39,7 +39,8 @@ class KGEModel(nn.Module):
         self.phase_weight = nn.Parameter(torch.Tensor([[0.5 * self.embedding_range.item()]]))
         self.modulus_weight = nn.Parameter(torch.Tensor([[1.0]]))
         
-        self.entity_dim = hidden_dim*2 if double_entity_embedding else hidden_dim
+        self.entity_dim = hidden_dim*num_entity_embedding
+        # self.entity_dim = hidden_dim*2 if double_entity_embedding else hidden_dim
         self.relation_dim = hidden_dim*num_relation_embedding
         
         self.entity_embedding = nn.Parameter(torch.zeros(nentity, self.entity_dim))
@@ -63,22 +64,32 @@ class KGEModel(nn.Module):
             nn.init.zeros_(
                 tensor=self.relation_embedding[:, 2 * hidden_dim:3 * hidden_dim]
             )
+        elif model_name == 'QuatRE':
+            self.Whr = nn.Parameter(torch.zeros(nrelation, 4*hidden_dim))
+            self.Wtr = nn.Parameter(torch.zeros(nrelation, 4*hidden_dim))
+            nn.init.xavier_uniform_(self.Whr)
+            nn.init.xavier_uniform_(self.Wtr)
+        elif model_name == 'Rotate4D':
+            nn.init.ones_(tensor=self.relation_embedding[:, 3*hidden_dim:4*hidden_dim])
         
         #Do not forget to modify this line when you add a new model in the "forward" function
-        if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE', 'TripleRE']:
+        if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE', 'TripleRE', 'QuatRE', 'Rotate4D']:
             raise ValueError('model %s not supported' % model_name)
             
-        if model_name == 'RotatE' and (not double_entity_embedding or num_relation_embedding != 1):
-            raise ValueError('RotatE should use --double_entity_embedding')
+        if model_name == 'RotatE' and (num_entity_embedding != 2 or num_relation_embedding != 1):
+            raise ValueError('RotatE should use --num_entity_embedding 2')
 
-        if model_name == 'ComplEx' and (not double_entity_embedding or num_relation_embedding != 2):
-            raise ValueError('ComplEx should use --double_entity_embedding and --num_relation_embedding 2')
+        if model_name == 'ComplEx' and (num_entity_embedding != 2 or num_relation_embedding != 2):
+            raise ValueError('ComplEx should use --num_entity_embedding 2 and --num_relation_embedding 2')
         
-        if model_name == 'HAKE' and (not double_entity_embedding or num_relation_embedding != 3):
-            raise ValueError('HAKE should use --double_entity_embedding and --num_relation_embedding 3')
+        if model_name == 'HAKE' and (num_entity_embedding != 2 or num_relation_embedding != 3):
+            raise ValueError('HAKE should use --num_entity_embedding 2 and --num_relation_embedding 3')
         
         if model_name == 'TripleRE' and (num_relation_embedding != 3):
             raise ValueError('TripleRE should use --num_relation_embedding 3')
+        
+        if (model_name == 'QuatRE' or model_name == 'Rotate4D') and (num_entity_embedding != 4 or num_relation_embedding != 4):
+            raise ValueError('QuatRE or Rotate4D should use --num_entity_embedding 4 and --num_relation_embedding 4')
 
     def forward(self, sample, mode='single'):
         '''
@@ -112,6 +123,10 @@ class KGEModel(nn.Module):
                 index=sample[:,2]
             ).unsqueeze(1)
             
+            if self.model_name == 'QuatRE':
+                self.hr = torch.index_select(self.Whr, dim=0, index=sample[:,1]).unsqueeze(1)
+                self.tr = torch.index_select(self.Wtr, dim=0, index=sample[:,1]).unsqueeze(1)
+            
         elif mode == 'head-batch':
             tail_part, head_part = sample
             batch_size, negative_sample_size = head_part.size(0), head_part.size(1)
@@ -133,6 +148,10 @@ class KGEModel(nn.Module):
                 dim=0, 
                 index=tail_part[:, 2]
             ).unsqueeze(1)
+            
+            if self.model_name == 'QuatRE':
+                self.hr = torch.index_select(self.Whr, dim=0, index=tail_part[:, 1]).unsqueeze(1)
+                self.tr = torch.index_select(self.Wtr, dim=0, index=tail_part[:, 1]).unsqueeze(1)
             
         elif mode == 'tail-batch':
             head_part, tail_part = sample
@@ -156,16 +175,23 @@ class KGEModel(nn.Module):
                 index=tail_part.view(-1)
             ).view(batch_size, negative_sample_size, -1)
             
+            if self.model_name == 'QuatRE':
+                self.hr = torch.index_select(self.Whr, dim=0, index=head_part[:, 1]).unsqueeze(1)
+                self.tr = torch.index_select(self.Wtr, dim=0, index=head_part[:, 1]).unsqueeze(1)
+            
         else:
             raise ValueError('mode %s not supported' % mode)
-            
+        
+        
         model_func = {
             'TransE': self.TransE,
             'DistMult': self.DistMult,
             'ComplEx': self.ComplEx,
             'RotatE': self.RotatE,
             'HAKE': self.HAKE,
-            'TripleRE': self.TripleRE
+            'TripleRE': self.TripleRE,
+            'QuatRE': self.QuatRE,
+            'Rotate4D': self.Rotate4D
         }
         
         if self.model_name in model_func:
@@ -174,7 +200,6 @@ class KGEModel(nn.Module):
             raise ValueError('model %s not supported' % self.model_name)
         
         return score
-    
     
     def TransE(self, head, relation, tail, mode):
         if mode == 'head-batch':
@@ -185,7 +210,6 @@ class KGEModel(nn.Module):
         score = self.gamma.item() - torch.norm(score, p=1, dim=2)
         return score
 
-
     def DistMult(self, head, relation, tail, mode):
         if mode == 'head-batch':
             score = head * (relation * tail)
@@ -194,7 +218,6 @@ class KGEModel(nn.Module):
 
         score = score.sum(dim = 2)
         return score
-
 
     def ComplEx(self, head, relation, tail, mode):
         re_head, im_head = torch.chunk(head, 2, dim=2)
@@ -212,7 +235,6 @@ class KGEModel(nn.Module):
 
         score = score.sum(dim = 2)
         return score
-
 
     def RotatE(self, head, relation, tail, mode):
         pi = 3.14159265358979323846
@@ -278,10 +300,95 @@ class KGEModel(nn.Module):
         head = F.normalize(head, 2, -1)
         tail = F.normalize(tail, 2, -1)
         
+        if mode == 'head-batch':
+            score = head * re_head + (re_mid - tail * re_tail)
         score = head * re_head - tail * re_tail + re_mid
         score = self.gamma.item() - torch.norm(score, p = 1, dim = 2)
         
         return score
+    
+    def QuatRE(self, head, relation, tail, mode):
+        h_r = self.vec_vec_wise_multiplication(head, self.hr)
+        t_r = self.vec_vec_wise_multiplication(tail, self.tr)
+        hrr = self.vec_vec_wise_multiplication(h_r, relation)
+        score = hrr * t_r
+        
+        return score.sum(dim = 2)
+    
+    def Rotate4D(self, head, relation, tail, mode):
+        pi = 3.14159265358979323846
+        
+        u_h, x_h, y_h, z_h = torch.chunk(head, 4, dim = 2)
+        alpha_1, alpha_2, alpha_3, bias = torch.chunk(relation, 4, dim = 2)
+        u_t, x_t, y_t, z_t = torch.chunk(tail, 4, dim = 2)
+        
+        bias = torch.abs(bias)
+        
+        # make phases of relations uniformly distributed in [-pi, pi]
+        alpha_1 = alpha_1 / (self.embedding_range.item() / pi)
+        alpha_2 = alpha_2 / (self.embedding_range.item() / pi)
+        alpha_3 = alpha_3 / (self.embedding_range.item() / pi)
+        
+        # obtain representation of the rotation axis
+        a_r = torch.cos(alpha_1)
+        b_r = torch.sin(alpha_1) * torch.cos(alpha_2)
+        c_r = torch.sin(alpha_1) * torch.sin(alpha_2) * torch.cos(alpha_3)
+        d_r = torch.sin(alpha_1) * torch.sin(alpha_2) * torch.sin(alpha_3)
+        
+        if mode == 'head-batch':
+            score_u = (a_r*u_t - b_r*x_t - c_r*y_t - d_r*z_t)*bias - u_h
+            score_x = (a_r*x_t + b_r*u_t + c_r*z_t - d_r*y_t)*bias - x_h
+            score_y = (a_r*y_t - b_r*z_t + c_r*u_t + d_r*x_t)*bias - y_h
+            score_z = (a_r*z_t + b_r*y_t - c_r*x_t + d_r*u_t)*bias - z_h
+        else:
+            score_u = (a_r*u_h - b_r*x_h - c_r*y_h - d_r*z_h)*bias - u_t
+            score_x = (a_r*x_h + b_r*u_h + c_r*z_h - d_r*y_h)*bias - x_t
+            score_y = (a_r*y_h - b_r*z_h + c_r*u_h + d_r*x_h)*bias - y_t
+            score_z = (a_r*z_h + b_r*y_h - c_r*x_h + d_r*u_h)*bias - z_t
+        
+        score = torch.stack([score_u, score_x, score_y, score_z], dim = 0)
+        score = score.norm(dim = 0, p = 2)
+        score = self.gamma.item() - score.sum(dim = 2)
+        
+        return score
+    
+    def normalization(self, quaternion, split_dim=2):  # vectorized quaternion bs x 4dim
+        size = quaternion.size(split_dim) // 4
+        quaternion = quaternion.reshape(-1, 4, size)  # bs x 4 x dim
+        quaternion = quaternion / torch.sqrt(torch.sum(quaternion ** 2, 1, True))  # quaternion / norm
+        quaternion = quaternion.reshape(-1, 1, 4 * size)
+        return quaternion
+    
+    def make_wise_quaternion(self, quaternion):  # for vector * vector quaternion element-wise multiplication
+        if len(quaternion.size()) == 1:
+            quaternion = quaternion.unsqueeze(0)
+        size = quaternion.size(2) // 4
+        r, i, j, k = torch.split(quaternion, size, dim=2)
+        r2 = torch.cat([r, -i, -j, -k], dim=2)  # 0, 1, 2, 3 --> bs x 4dim
+        i2 = torch.cat([i, r, -k, j], dim=2)  # 1, 0, 3, 2
+        j2 = torch.cat([j, k, r, -i], dim=2)  # 2, 3, 0, 1
+        k2 = torch.cat([k, -j, i, r], dim=2)  # 3, 2, 1, 0
+        return r2, i2, j2, k2
+    
+    def get_quaternion_wise_mul(self, quaternion):
+        bs = quaternion.size(0)
+        num_neg = quaternion.size(1)
+        size = quaternion.size(2) // 4
+        quaternion = quaternion.view(bs, num_neg, 4, size)
+        quaternion = torch.sum(quaternion, 2)
+        return quaternion
+
+    def vec_vec_wise_multiplication(self, q, p):  # vector * vector
+        normalized_p = self.normalization(p)  # bs x 4dim
+        q_r, q_i, q_j, q_k = self.make_wise_quaternion(q)  # bs x 4dim
+
+        qp_r = self.get_quaternion_wise_mul(q_r * normalized_p)  # qrpr−qipi−qjpj−qkpk
+        qp_i = self.get_quaternion_wise_mul(q_i * normalized_p)  # qipr+qrpi−qkpj+qjpk
+        qp_j = self.get_quaternion_wise_mul(q_j * normalized_p)  # qjpr+qkpi+qrpj−qipk
+        qp_k = self.get_quaternion_wise_mul(q_k * normalized_p)  # qkpr−qjpi+qipj+qrpk
+
+        return torch.cat([qp_r, qp_i, qp_j, qp_k], dim=2)
+
 
 
 # --------------------------------- RGCN --------------------------------- #
@@ -466,318 +573,318 @@ class ConvKB(nn.Module):
         return score
 
 
-# --------------------------------- GIE --------------------------------- #
+# # --------------------------------- GIE --------------------------------- #
 
-class GIE(nn.Module):
-    def __init__(self, nentity, nrelation, hidden_dim, gamma, bias, init_size):
-        super(GIE, self).__init__()
+# class GIE(nn.Module):
+#     def __init__(self, nentity, nrelation, hidden_dim, gamma, bias, init_size):
+#         super(GIE, self).__init__()
 
-        self.hidden_dim = hidden_dim
-        self.bias = bias
-        self.gamma = nn.Parameter(torch.Tensor([gamma]), requires_grad=False)
-        self.entity_embedding = nn.Embedding(nentity, hidden_dim)
-        self.relation_embedding = nn.Embedding(nrelation, hidden_dim)
-        self.bh = nn.Embedding(nentity, 1)
-        self.bt = nn.Embedding(nentity, 1)
+#         self.hidden_dim = hidden_dim
+#         self.bias = bias
+#         self.gamma = nn.Parameter(torch.Tensor([gamma]), requires_grad=False)
+#         self.entity_embedding = nn.Embedding(nentity, hidden_dim)
+#         self.relation_embedding = nn.Embedding(nrelation, hidden_dim)
+#         self.bh = nn.Embedding(nentity, 1)
+#         self.bt = nn.Embedding(nentity, 1)
 
-        self.c = nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
-        self.c1= nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
-        self.c2 = nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
+#         self.c = nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
+#         self.c1= nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
+#         self.c2 = nn.Parameter(torch.ones((nrelation, 1), dtype=torch.float), requires_grad=True)
 
-        self.rel_diag = nn.Embedding(nrelation, 2 * self.hidden_dim)
-        self.rel_diag1 = nn.Embedding(nrelation, self.hidden_dim)
-        self.rel_diag2 = nn.Embedding(nrelation, self.hidden_dim)
-        self.context_vec = nn.Embedding(nrelation, self.hidden_dim)
+#         self.rel_diag = nn.Embedding(nrelation, 2 * self.hidden_dim)
+#         self.rel_diag1 = nn.Embedding(nrelation, self.hidden_dim)
+#         self.rel_diag2 = nn.Embedding(nrelation, self.hidden_dim)
+#         self.context_vec = nn.Embedding(nrelation, self.hidden_dim)
         
-        self.bh.weight.data = torch.zeros((nentity, 1), dtype=torch.float)
-        self.bt.weight.data = torch.zeros((nentity, 1), dtype=torch.float)
+#         self.bh.weight.data = torch.zeros((nentity, 1), dtype=torch.float)
+#         self.bt.weight.data = torch.zeros((nentity, 1), dtype=torch.float)
 
-        self.entity_embedding.weight.data = init_size * torch.randn((nentity, self.hidden_dim), dtype=torch.float)
-        self.relation_embedding.weight.data = init_size * torch.randn((nrelation, 2 * self.hidden_dim), dtype=torch.float)
-        self.rel_diag.weight.data = 2 * torch.rand((nrelation, 2 * self.hidden_dim), dtype=torch.float) - 1.0
-        self.context_vec.weight.data = init_size * torch.randn((nrelation, self.hidden_dim), dtype=torch.float)
-        self.scale = nn.Parameter(torch.Tensor([1. / (self.hidden_dim**0.5)]),requires_grad=False)
+#         self.entity_embedding.weight.data = init_size * torch.randn((nentity, self.hidden_dim), dtype=torch.float)
+#         self.relation_embedding.weight.data = init_size * torch.randn((nrelation, 2 * self.hidden_dim), dtype=torch.float)
+#         self.rel_diag.weight.data = 2 * torch.rand((nrelation, 2 * self.hidden_dim), dtype=torch.float) - 1.0
+#         self.context_vec.weight.data = init_size * torch.randn((nrelation, self.hidden_dim), dtype=torch.float)
+#         self.scale = nn.Parameter(torch.Tensor([1. / (self.hidden_dim**0.5)]),requires_grad=False)
 
-    def similarity_score(self, lhs_e, rhs_e):
-        lhs_e, c = lhs_e
-        return - hyp_distance_multi_c(lhs_e, rhs_e, c, False) ** 2
+#     def similarity_score(self, lhs_e, rhs_e):
+#         lhs_e, c = lhs_e
+#         return - hyp_distance_multi_c(lhs_e, rhs_e, c, False) ** 2
     
-    def score(self, lhs, rhs):
-        lhs_e, lhs_biases = lhs
-        rhs_e, rhs_biases = rhs
-        score = self.similarity_score(lhs_e, rhs_e)
-        if self.bias == 'constant':
-            return self.gamma.item() + score
-        elif self.bias == 'learn':
-            return lhs_biases + rhs_biases + score
-        else:
-            return score
+#     def score(self, lhs, rhs):
+#         lhs_e, lhs_biases = lhs
+#         rhs_e, rhs_biases = rhs
+#         score = self.similarity_score(lhs_e, rhs_e)
+#         if self.bias == 'constant':
+#             return self.gamma.item() + score
+#         elif self.bias == 'learn':
+#             return lhs_biases + rhs_biases + score
+#         else:
+#             return score
 
-    def get_queries(self, head_idx, relation_idx):
+#     def get_queries(self, head_idx, relation_idx):
 
-        c1 = F.softplus(self.c1[relation_idx])
-        head1 = expmap0(self.entity_embedding(head_idx), c1)
-        rel1, rel2 = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
-        rel1 = expmap0(rel1, c1)
-        rel2 = expmap0(rel2, c1)
-        lhs = project(mobius_add(head1, rel1, c1), c1)
-        res1 = givens_rotations(self.rel_diag1(relation_idx), lhs)
-        c2 = F.softplus(self.c2[relation_idx]) 
-        head2 = expmap1(self.entity_embedding(head_idx), c2)
-        rel1, rel2 = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
-        rel11 = expmap1(rel1, c2)
-        rel21= expmap1(rel2, c2)
-        lhss = project(mobius_add(head2, rel11, c2), c2)
-        res11 = givens_rotations(self.rel_diag2(relation_idx), lhss)
-        res1=logmap1(res1,c1)  
-        res11=logmap1(res11,c2) 
-        c = F.softplus(self.c[relation_idx])
+#         c1 = F.softplus(self.c1[relation_idx])
+#         head1 = expmap0(self.entity_embedding(head_idx), c1)
+#         rel1, rel2 = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
+#         rel1 = expmap0(rel1, c1)
+#         rel2 = expmap0(rel2, c1)
+#         lhs = project(mobius_add(head1, rel1, c1), c1)
+#         res1 = givens_rotations(self.rel_diag1(relation_idx), lhs)
+#         c2 = F.softplus(self.c2[relation_idx]) 
+#         head2 = expmap1(self.entity_embedding(head_idx), c2)
+#         rel1, rel2 = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
+#         rel11 = expmap1(rel1, c2)
+#         rel21= expmap1(rel2, c2)
+#         lhss = project(mobius_add(head2, rel11, c2), c2)
+#         res11 = givens_rotations(self.rel_diag2(relation_idx), lhss)
+#         res1=logmap1(res1,c1)  
+#         res11=logmap1(res11,c2) 
+#         c = F.softplus(self.c[relation_idx])
         
-        rot_mat, _ = torch.chunk(self.rel_diag(relation_idx), 2, dim=1)
-        rot_q = givens_rotations(rot_mat, self.entity_embedding(head_idx)).view((-1, 1, self.hidden_dim))
-        cands = torch.cat([res1.view(-1, 1, self.hidden_dim),res11.view(-1, 1, self.hidden_dim),rot_q], dim=1)
-        context_vec = self.context_vec(relation_idx).view((-1, 1, self.hidden_dim))
-        att_weights = torch.sum(context_vec * cands * self.scale, dim=-1, keepdim=True)
-        att_weights = nn.Softmax(dim=-1)(att_weights)
-        att_q = torch.sum(att_weights * cands, dim=1)
-        lhs = expmap0(att_q, c)
-        rel, _ = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
-        rel = expmap0(rel, c)
-        res = project(mobius_add(lhs, rel, c), c)
-        return (res, c), self.bh(head_idx)
+#         rot_mat, _ = torch.chunk(self.rel_diag(relation_idx), 2, dim=1)
+#         rot_q = givens_rotations(rot_mat, self.entity_embedding(head_idx)).view((-1, 1, self.hidden_dim))
+#         cands = torch.cat([res1.view(-1, 1, self.hidden_dim),res11.view(-1, 1, self.hidden_dim),rot_q], dim=1)
+#         context_vec = self.context_vec(relation_idx).view((-1, 1, self.hidden_dim))
+#         att_weights = torch.sum(context_vec * cands * self.scale, dim=-1, keepdim=True)
+#         att_weights = nn.Softmax(dim=-1)(att_weights)
+#         att_q = torch.sum(att_weights * cands, dim=1)
+#         lhs = expmap0(att_q, c)
+#         rel, _ = torch.chunk(self.relation_embedding(relation_idx), 2, dim=1)
+#         rel = expmap0(rel, c)
+#         res = project(mobius_add(lhs, rel, c), c)
+#         return (res, c), self.bh(head_idx)
     
-    def forward(self, sample, mode='single'):
+#     def forward(self, sample, mode='single'):
 
-        if mode == 'single':
-            batch_size, negative_sample_size = sample.size(0), 1
+#         if mode == 'single':
+#             batch_size, negative_sample_size = sample.size(0), 1
             
-            head_idx = sample[:,0]
-            relation_idx = sample[:,1]
-            tail_idx = sample[:,2]
+#             head_idx = sample[:,0]
+#             relation_idx = sample[:,1]
+#             tail_idx = sample[:,2]
             
-        elif mode == 'head-batch':
-            tail_part, head_part = sample
-            batch_size, negative_sample_size = head_part.size(0), head_part.size(1)
+#         elif mode == 'head-batch':
+#             tail_part, head_part = sample
+#             batch_size, negative_sample_size = head_part.size(0), head_part.size(1)
             
-            head_idx = head_part.view(-1)
-            relation_idx = tail_part[:, 1].repeat(negative_sample_size)
-            tail_idx = tail_part[:, 2].repeat(negative_sample_size)
+#             head_idx = head_part.view(-1)
+#             relation_idx = tail_part[:, 1].repeat(negative_sample_size)
+#             tail_idx = tail_part[:, 2].repeat(negative_sample_size)
             
-        elif mode == 'tail-batch':
-            head_part, tail_part = sample
-            batch_size, negative_sample_size = tail_part.size(0), tail_part.size(1)
+#         elif mode == 'tail-batch':
+#             head_part, tail_part = sample
+#             batch_size, negative_sample_size = tail_part.size(0), tail_part.size(1)
             
-            head_idx = head_part[:, 0].repeat(negative_sample_size)
-            relation_idx = head_part[:, 1].repeat(negative_sample_size)
-            tail_idx = tail_part.view(-1)   
+#             head_idx = head_part[:, 0].repeat(negative_sample_size)
+#             relation_idx = head_part[:, 1].repeat(negative_sample_size)
+#             tail_idx = tail_part.view(-1)   
         
-        lhs_e, lhs_biases = self.get_queries(head_idx, relation_idx)
-        rhs_e, rhs_biases = self.entity_embedding(tail_idx), self.bt(tail_idx)
-        score = self.score((lhs_e, lhs_biases), (rhs_e, rhs_biases))
+#         lhs_e, lhs_biases = self.get_queries(head_idx, relation_idx)
+#         rhs_e, rhs_biases = self.entity_embedding(tail_idx), self.bt(tail_idx)
+#         score = self.score((lhs_e, lhs_biases), (rhs_e, rhs_biases))
         
-        return score.view(-1, negative_sample_size)
+#         return score.view(-1, negative_sample_size)
 
-# --------------------------------- HousE --------------------------------- #
+# # --------------------------------- HousE --------------------------------- #
 
-class HousE(nn.Module):
-    def __init__(self, nentity, nrelation, hidden_dim, gamma, 
-                 house_dim=2, housd_num=1, thred=0.5):
-        super().__init__()
-        if house_dim % 2 == 0:
-            house_num = house_dim
-        else:
-            house_num = house_dim-1
-        self.nentity = nentity
-        self.nrelation = nrelation
-        self.hidden_dim = int(hidden_dim / house_dim)
-        self.house_dim = house_dim
-        self.housd_num = housd_num
-        self.epsilon = 2.0
-        self.thred = thred
-        self.house_num = house_num + (2*self.housd_num)
+# class HousE(nn.Module):
+#     def __init__(self, nentity, nrelation, hidden_dim, gamma, 
+#                  house_dim=2, housd_num=1, thred=0.5):
+#         super().__init__()
+#         if house_dim % 2 == 0:
+#             house_num = house_dim
+#         else:
+#             house_num = house_dim-1
+#         self.nentity = nentity
+#         self.nrelation = nrelation
+#         self.hidden_dim = int(hidden_dim / house_dim)
+#         self.house_dim = house_dim
+#         self.housd_num = housd_num
+#         self.epsilon = 2.0
+#         self.thred = thred
+#         self.house_num = house_num + (2*self.housd_num)
 
-        self.gamma = nn.Parameter(
-            torch.Tensor([gamma]), 
-            requires_grad=False
-        )
+#         self.gamma = nn.Parameter(
+#             torch.Tensor([gamma]), 
+#             requires_grad=False
+#         )
         
-        self.embedding_range = nn.Parameter(
-            torch.Tensor([(self.gamma.item() + self.epsilon) / (self.hidden_dim * (self.house_dim ** 0.5))]),
-            requires_grad=False
-        )
+#         self.embedding_range = nn.Parameter(
+#             torch.Tensor([(self.gamma.item() + self.epsilon) / (self.hidden_dim * (self.house_dim ** 0.5))]),
+#             requires_grad=False
+#         )
         
-        self.entity_dim = self.hidden_dim
-        self.relation_dim = self.hidden_dim
+#         self.entity_dim = self.hidden_dim
+#         self.relation_dim = self.hidden_dim
         
-        self.entity_embedding = nn.Parameter(torch.zeros(nentity, self.entity_dim, self.house_dim))
-        nn.init.uniform_(
-            tensor=self.entity_embedding, 
-            a=-self.embedding_range.item(),
-            b=self.embedding_range.item()
-        )
+#         self.entity_embedding = nn.Parameter(torch.zeros(nentity, self.entity_dim, self.house_dim))
+#         nn.init.uniform_(
+#             tensor=self.entity_embedding, 
+#             a=-self.embedding_range.item(),
+#             b=self.embedding_range.item()
+#         )
         
-        self.relation_embedding = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.house_dim*self.house_num))
-        nn.init.uniform_(
-            tensor=self.relation_embedding,
-            a=-self.embedding_range.item(),
-            b=self.embedding_range.item()
-        )
+#         self.relation_embedding = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.house_dim*self.house_num))
+#         nn.init.uniform_(
+#             tensor=self.relation_embedding,
+#             a=-self.embedding_range.item(),
+#             b=self.embedding_range.item()
+#         )
 
-        self.k_dir_head = nn.Parameter(torch.zeros(nrelation, 1, self.housd_num))
-        nn.init.uniform_(
-            tensor=self.k_dir_head,
-            a=-0.01,
-            b=+0.01
-        )
+#         self.k_dir_head = nn.Parameter(torch.zeros(nrelation, 1, self.housd_num))
+#         nn.init.uniform_(
+#             tensor=self.k_dir_head,
+#             a=-0.01,
+#             b=+0.01
+#         )
 
-        self.k_dir_tail = nn.Parameter(torch.zeros(nrelation, 1, self.housd_num))
-        with torch.no_grad():
-            self.k_dir_tail.data = - self.k_dir_head.data
+#         self.k_dir_tail = nn.Parameter(torch.zeros(nrelation, 1, self.housd_num))
+#         with torch.no_grad():
+#             self.k_dir_tail.data = - self.k_dir_head.data
         
-        self.k_scale_head = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.housd_num))
-        nn.init.uniform_(
-            tensor=self.k_scale_head,
-            a=-1,
-            b=+1
-        )
+#         self.k_scale_head = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.housd_num))
+#         nn.init.uniform_(
+#             tensor=self.k_scale_head,
+#             a=-1,
+#             b=+1
+#         )
 
-        self.k_scale_tail = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.housd_num))
-        nn.init.uniform_(
-            tensor=self.k_scale_tail,
-            a=-1,
-            b=+1
-        )
+#         self.k_scale_tail = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.housd_num))
+#         nn.init.uniform_(
+#             tensor=self.k_scale_tail,
+#             a=-1,
+#             b=+1
+#         )
 
-        self.relation_weight = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.house_dim))
-        nn.init.uniform_(
-            tensor=self.relation_weight,
-            a=-self.embedding_range.item(),
-            b=self.embedding_range.item()
-        )
+#         self.relation_weight = nn.Parameter(torch.zeros(nrelation, self.relation_dim, self.house_dim))
+#         nn.init.uniform_(
+#             tensor=self.relation_weight,
+#             a=-self.embedding_range.item(),
+#             b=self.embedding_range.item()
+#         )
 
-    def norm_embedding(self, mode):
-        entity_embedding = self.entity_embedding
-        r_list = torch.chunk(self.relation_embedding, self.house_num, 2)
-        normed_r_list = []
-        for i in range(self.house_num):
-            r_i = torch.nn.functional.normalize(r_list[i], dim=2, p=2)
-            normed_r_list.append(r_i)
-        r = torch.cat(normed_r_list, dim=2)
-        self.k_head = self.k_dir_head * torch.abs(self.k_scale_head)
-        self.k_head[self.k_head>self.thred] = self.thred
-        self.k_tail = self.k_dir_tail * torch.abs(self.k_scale_tail)
-        self.k_tail[self.k_tail>self.thred] = self.thred
-        return entity_embedding, r
+#     def norm_embedding(self, mode):
+#         entity_embedding = self.entity_embedding
+#         r_list = torch.chunk(self.relation_embedding, self.house_num, 2)
+#         normed_r_list = []
+#         for i in range(self.house_num):
+#             r_i = torch.nn.functional.normalize(r_list[i], dim=2, p=2)
+#             normed_r_list.append(r_i)
+#         r = torch.cat(normed_r_list, dim=2)
+#         self.k_head = self.k_dir_head * torch.abs(self.k_scale_head)
+#         self.k_head[self.k_head>self.thred] = self.thred
+#         self.k_tail = self.k_dir_tail * torch.abs(self.k_scale_tail)
+#         self.k_tail[self.k_tail>self.thred] = self.thred
+#         return entity_embedding, r
 
-    def forward(self, sample, mode='single'):
+#     def forward(self, sample, mode='single'):
 
-        entity_embedding, r = self.norm_embedding(mode)
+#         entity_embedding, r = self.norm_embedding(mode)
 
-        if mode == 'head-batch':
-            tail_part, head_part = sample
-            batch_size, negative_sample_size = head_part.size(0), head_part.size(1)
+#         if mode == 'head-batch':
+#             tail_part, head_part = sample
+#             batch_size, negative_sample_size = head_part.size(0), head_part.size(1)
 
-            head = torch.index_select(
-                entity_embedding,
-                dim=0,
-                index=head_part.view(-1)
-            ).view(batch_size, negative_sample_size, self.entity_dim, -1)
+#             head = torch.index_select(
+#                 entity_embedding,
+#                 dim=0,
+#                 index=head_part.view(-1)
+#             ).view(batch_size, negative_sample_size, self.entity_dim, -1)
 
-            k_head = torch.index_select(
-                self.k_head,
-                dim=0,
-                index=tail_part[:, 1]
-            ).unsqueeze(1)
+#             k_head = torch.index_select(
+#                 self.k_head,
+#                 dim=0,
+#                 index=tail_part[:, 1]
+#             ).unsqueeze(1)
 
-            k_tail = torch.index_select(
-                self.k_tail,
-                dim=0,
-                index=tail_part[:, 1]
-            ).unsqueeze(1)
+#             k_tail = torch.index_select(
+#                 self.k_tail,
+#                 dim=0,
+#                 index=tail_part[:, 1]
+#             ).unsqueeze(1)
 
-            relation = torch.index_select(
-                r,
-                dim=0,
-                index=tail_part[:, 1]
-            ).unsqueeze(1)
+#             relation = torch.index_select(
+#                 r,
+#                 dim=0,
+#                 index=tail_part[:, 1]
+#             ).unsqueeze(1)
 
-            tail = torch.index_select(
-                entity_embedding,
-                dim=0,
-                index=tail_part[:, 2]
-            ).unsqueeze(1)
+#             tail = torch.index_select(
+#                 entity_embedding,
+#                 dim=0,
+#                 index=tail_part[:, 2]
+#             ).unsqueeze(1)
 
-        elif mode == 'tail-batch':
-            head_part, tail_part = sample
-            batch_size, negative_sample_size = tail_part.size(0), tail_part.size(1)
+#         elif mode == 'tail-batch':
+#             head_part, tail_part = sample
+#             batch_size, negative_sample_size = tail_part.size(0), tail_part.size(1)
 
-            head = torch.index_select(
-                entity_embedding,
-                dim=0,
-                index=head_part[:, 0]
-            ).unsqueeze(1)
+#             head = torch.index_select(
+#                 entity_embedding,
+#                 dim=0,
+#                 index=head_part[:, 0]
+#             ).unsqueeze(1)
 
-            k_head = torch.index_select(
-                self.k_head,
-                dim=0,
-                index=head_part[:, 1]
-            ).unsqueeze(1)
+#             k_head = torch.index_select(
+#                 self.k_head,
+#                 dim=0,
+#                 index=head_part[:, 1]
+#             ).unsqueeze(1)
 
-            k_tail = torch.index_select(
-                self.k_tail,
-                dim=0,
-                index=head_part[:, 1]
-            ).unsqueeze(1)
+#             k_tail = torch.index_select(
+#                 self.k_tail,
+#                 dim=0,
+#                 index=head_part[:, 1]
+#             ).unsqueeze(1)
 
-            relation = torch.index_select(
-                r,
-                dim=0,
-                index=head_part[:, 1]
-            ).unsqueeze(1)
+#             relation = torch.index_select(
+#                 r,
+#                 dim=0,
+#                 index=head_part[:, 1]
+#             ).unsqueeze(1)
 
-            tail = torch.index_select(
-                entity_embedding,
-                dim=0,
-                index=tail_part.view(-1)
-            ).view(batch_size, negative_sample_size, self.entity_dim, -1)
+#             tail = torch.index_select(
+#                 entity_embedding,
+#                 dim=0,
+#                 index=tail_part.view(-1)
+#             ).view(batch_size, negative_sample_size, self.entity_dim, -1)
 
-        else:
-            raise ValueError('mode %s not supported' % mode)
+#         else:
+#             raise ValueError('mode %s not supported' % mode)
 
-        r_list = torch.chunk(relation, self.house_num, 3)
+#         r_list = torch.chunk(relation, self.house_num, 3)
 
-        if mode == 'head-batch':
-            for i in range(self.housd_num):
-                k_tail_i = k_tail[:, :, :, i].unsqueeze(dim=3)
-                tail = tail - (0 + k_tail_i) * (r_list[i] * tail).sum(dim=-1, keepdim=True) * r_list[i]
+#         if mode == 'head-batch':
+#             for i in range(self.housd_num):
+#                 k_tail_i = k_tail[:, :, :, i].unsqueeze(dim=3)
+#                 tail = tail - (0 + k_tail_i) * (r_list[i] * tail).sum(dim=-1, keepdim=True) * r_list[i]
 
-            for i in range(self.housd_num, self.house_num-self.housd_num):
-                tail = tail - 2 * (r_list[i] * tail).sum(dim=-1, keepdim=True) * r_list[i]
+#             for i in range(self.housd_num, self.house_num-self.housd_num):
+#                 tail = tail - 2 * (r_list[i] * tail).sum(dim=-1, keepdim=True) * r_list[i]
             
-            for i in range(self.housd_num):
-                k_head_i = k_head[:, :, :, i].unsqueeze(dim=3)
-                head = head - (0 + k_head_i) * (r_list[self.house_num-1-i] * head).sum(dim=-1, keepdim=True) * r_list[self.house_num-1-i]
+#             for i in range(self.housd_num):
+#                 k_head_i = k_head[:, :, :, i].unsqueeze(dim=3)
+#                 head = head - (0 + k_head_i) * (r_list[self.house_num-1-i] * head).sum(dim=-1, keepdim=True) * r_list[self.house_num-1-i]
 
-            cos_score = tail - head
-            cos_score = torch.sum(cos_score.norm(dim=3, p=2), dim=2)
-        else:
-            for i in range(self.housd_num):
-                k_head_i = k_head[:, :, :, i].unsqueeze(dim=3)
-                head = head - (0 + k_head_i) * (r_list[self.house_num-1-i] * head).sum(dim=-1, keepdim=True) * r_list[self.house_num-1-i]
+#             cos_score = tail - head
+#             cos_score = torch.sum(cos_score.norm(dim=3, p=2), dim=2)
+#         else:
+#             for i in range(self.housd_num):
+#                 k_head_i = k_head[:, :, :, i].unsqueeze(dim=3)
+#                 head = head - (0 + k_head_i) * (r_list[self.house_num-1-i] * head).sum(dim=-1, keepdim=True) * r_list[self.house_num-1-i]
             
-            for i in range(self.housd_num, self.house_num-self.housd_num):
-                j = self.house_num - 1 - i
-                head = head - 2 * (r_list[j] * head).sum(dim=-1, keepdim=True) * r_list[j]
+#             for i in range(self.housd_num, self.house_num-self.housd_num):
+#                 j = self.house_num - 1 - i
+#                 head = head - 2 * (r_list[j] * head).sum(dim=-1, keepdim=True) * r_list[j]
             
-            for i in range(self.housd_num):
-                k_tail_i = k_tail[:, :, :, i].unsqueeze(dim=3)
-                tail = tail - (0 + k_tail_i) * (r_list[i] * tail).sum(dim=-1, keepdim=True) * r_list[i]
+#             for i in range(self.housd_num):
+#                 k_tail_i = k_tail[:, :, :, i].unsqueeze(dim=3)
+#                 tail = tail - (0 + k_tail_i) * (r_list[i] * tail).sum(dim=-1, keepdim=True) * r_list[i]
 
-            cos_score = head - tail
-            cos_score = torch.sum(cos_score.norm(dim=3, p=2), dim=2)
+#             cos_score = head - tail
+#             cos_score = torch.sum(cos_score.norm(dim=3, p=2), dim=2)
 
-        score = self.gamma.item() - (cos_score)
-        return score
+#         score = self.gamma.item() - (cos_score)
+#         return score
 
 # --------------------------------- CompGCN --------------------------------- #
 # class CompGCNBase(nn.Module):
