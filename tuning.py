@@ -433,13 +433,32 @@ def main():
                 'Test hits@3': test_metrics['hits@3'],
                 'Test hits@10': test_metrics['hits@10']
             })
-            stopupdate = 0
+            if valid_metrics['mrr'] > best_val_mrr:
+                best_iters = i
+                best_val_mrr = valid_metrics['mrr']
+                best_val_result = {
+                    'best_iters': best_iters,
+                    'best_val_mr': valid_metrics['mr'],
+                    'best_val_mrr': valid_metrics['mrr'],
+                    'best_val_hit1': valid_metrics['hits@1'],
+                    'best_val_hit3': valid_metrics['hits@3'],
+                    'best_val_hit10': valid_metrics['hits@10'],
+                    'final_test_mr': test_metrics['mr'],
+                    'final_test_mrr': test_metrics['mrr'],
+                    'final_test_hit1': test_metrics['hits@1'],
+                    'final_test_hit3': test_metrics['hits@3'],
+                    'final_test_hit10': test_metrics['hits@10']
+                }
+                model_params = deepcopy(model.state_dict())
+                optim_dict = deepcopy(optimizer.state_dict())
+                scheduler_dict = deepcopy(scheduler.state_dict())
+                stopupdate = 0
                 
-        else:
-            stopupdate += 1
-            if stopupdate > 5:
-                print(f'early stop at iteration {i}')
-                break
+            else:
+                stopupdate += 1
+                if stopupdate > 5:
+                    print(f'early stop at iteration {i}')
+                    break
             
     print('')
     for metric in valid_metrics.keys():
