@@ -36,7 +36,8 @@ sweep_configuration = {
     'metric': {'goal': 'maximize', 'name': 'Valid MRR'},
     'parameters':{
         'lr': {'values': [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001]},
-        'gamma': {'values': [1, 4, 8, 10, 30, 50]},
+        'gamma': {'values': [1]},
+        # 'gamma': {'values': [1, 4, 8, 10, 30, 50]},
         'model': {'values': [args.model]}
     }
 }
@@ -100,10 +101,6 @@ def train(model, device, train_iterator, optimizer, scheduler, args):
         'negative_sample_loss': negative_sample_loss.item(),
         'loss': loss.item()
     }
-    
-    # if i % 1000 == 0:
-    #     logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
-    #     logging.info(log)
      
     scheduler.step()
     
@@ -263,16 +260,6 @@ for i in tqdm(range(len(train_triples['head']))):
     train_true_head[(relation, tail)].append(head)
     train_true_tail[(head, relation)].append(tail)
 
-# if args.dataset in ['gd', 'cgd', 'cgpd', 'ctd']:
-#     idx = random.sample(range(len(train_triples['head'])), int(len(train_triples['head'])*args.train_frac))
-
-#     train_triples['head'] = train_triples['head'][idx]
-#     train_triples['tail'] = train_triples['tail'][idx]
-#     train_triples['relation'] = train_triples['relation'][idx]
-#     train_triples['head_type'] = [train_triples['head_type'][i] for i in idx]
-#     train_triples['tail_type'] = [train_triples['tail_type'][i] for i in idx]
-
-
 def main():
     wandb.init()
     
@@ -373,7 +360,7 @@ def main():
         filter(lambda p: p.requires_grad, model.parameters()), 
         lr=args.learning_rate
     )
-    scheduler = StepLR(optimizer, step_size=30, gamma=0.8)
+    scheduler = StepLR(optimizer, step_size=30000, gamma=0.8)
     # scheduler = ReduceLROnPlateau(optimizer, 'min')
     init_epoch = 1
     best_val_mrr = 0
@@ -449,9 +436,9 @@ def main():
                     'final_test_hit3': test_metrics['hits@3'],
                     'final_test_hit10': test_metrics['hits@10']
                 }
-                model_params = deepcopy(model.state_dict())
-                optim_dict = deepcopy(optimizer.state_dict())
-                scheduler_dict = deepcopy(scheduler.state_dict())
+                # model_params = deepcopy(model.state_dict())
+                # optim_dict = deepcopy(optimizer.state_dict())
+                # scheduler_dict = deepcopy(scheduler.state_dict())
                 stopupdate = 0
                 
             else:
