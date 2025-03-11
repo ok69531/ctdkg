@@ -389,7 +389,7 @@ def main():
             print(f"=== {i}-th iteration")
             logging.info('Training the model... (%d/%d)' % (i, args.max_step))
             for log in train_out.keys():
-                logging.info(f'Train {l}: {train_out[log]:.5f}')
+                logging.info(f'Train {log}: {train_out[log]:.5f}')
         
         wandb.log({
             'Train positive sample loss': train_out['positive_sample_loss'],
