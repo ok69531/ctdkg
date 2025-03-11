@@ -37,7 +37,8 @@ def parse_args(args=None):
     parser.add_argument('--learning_rate', default=0.0001, type=float)
     parser.add_argument('--num_workers', default=4, type = int)
     parser.add_argument('--init_checkpoint', default=None, type=str)
-    parser.add_argument('--num_epoch', default = 100, type = int)
+    parser.add_argument('--max_step', default = 100000, type = int)
+    # parser.add_argument('--num_epoch', default = 100, type = int)
     
     parser.add_argument('--valid_steps', default=1000, type=int)
     parser.add_argument('--test_log_steps', default=3000, type=int, help='valid/test log every xx steps')

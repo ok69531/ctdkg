@@ -16,7 +16,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from module.model import KGEModel
 from module.set_seed import set_seed
 from module.argument import parse_args
-from module.dataset import LinkPredDataset, TrainDataset, TestDataset
+from module.dataset import LinkPredDataset, TrainDataset, TestDataset, BidirectionalOneShotIterator
 
 
 try:
@@ -43,79 +43,146 @@ sweep_configuration = {
 
 sweep_id = wandb.sweep(sweep_configuration, project = f'ctdkg-{args.dataset}')
 
-def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
+def train(model, device, train_iterator, optimizer, scheduler, args):
     model.train()
+    optimizer.zero_grad()
     
-    epoch_logs = []
-    for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
-        for b in (b1, b2):
-            optimizer.zero_grad()
-            
-            positive_sample, negative_sample, subsampling_weight, mode = b
-            positive_sample = positive_sample.to(device)
-            negative_sample = negative_sample.to(device)
-            subsampling_weight = subsampling_weight.to(device)
-            
-            negative_score = model((positive_sample, negative_sample), mode=mode)
-            if args.negative_adversarial_sampling:
-                #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
-                negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
-                                * F.logsigmoid(-negative_score)).sum(dim = 1)
-            else:
-                negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
+    positive_sample, negative_sample, subsampling_weight, mode = next(train_iterator)
+    positive_sample = positive_sample.to(device)
+    negative_sample = negative_sample.to(device)
+    subsampling_weight = subsampling_weight.to(device)
+    
+    negative_score = model((positive_sample, negative_sample), mode=mode)
+    if args.negative_adversarial_sampling:
+        #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
+        negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
+                        * F.logsigmoid(-negative_score)).sum(dim = 1)
+    else:
+        negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
 
-            if args.model.upper() == 'HOUSE':
-                if mode == 'head-batch':
-                    pos_part = positive_sample[:, 0].unsqueeze(dim=1)
-                else:
-                    pos_part = positive_sample[:, 2].unsqueeze(dim=1)
-                positive_score = model((positive_sample, pos_part), mode=mode)
-            else:
-                positive_score = model(positive_sample)
-            positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
+    if args.model.upper() == 'HOUSE':
+        if mode == 'head-batch':
+            pos_part = positive_sample[:, 0].unsqueeze(dim=1)
+        else:
+            pos_part = positive_sample[:, 2].unsqueeze(dim=1)
+        positive_score = model((positive_sample, pos_part), mode=mode)
+    else:
+        positive_score = model(positive_sample)
+    positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
 
-            if args.uni_weight:
-                positive_sample_loss = - positive_score.mean()
-                negative_sample_loss = - negative_score.mean()
-            else:
-                positive_sample_loss = - (subsampling_weight * positive_score).sum()/subsampling_weight.sum()
-                negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
+    if args.uni_weight:
+        positive_sample_loss = - positive_score.mean()
+        negative_sample_loss = - negative_score.mean()
+    else:
+        positive_sample_loss = - (subsampling_weight * positive_score).sum()/subsampling_weight.sum()
+        negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
 
-            loss = (positive_sample_loss + negative_sample_loss)/2
-            
-            if args.regularization != 0.0:
-                #Use L3 regularization for ComplEx and DistMult
-                regularization = args.regularization * (
-                    model.entity_embedding.norm(p = 3)**3 + 
-                    model.relation_embedding.norm(p = 3).norm(p = 3)**3
-                )
-                loss = loss + regularization
-                regularization_log = {'regularization': regularization.item()}
-            else:
-                regularization_log = {}
-            
-            loss.backward()
+    loss = (positive_sample_loss + negative_sample_loss)/2
+    
+    if args.regularization != 0.0:
+        #Use L3 regularization for ComplEx and DistMult
+        regularization = args.regularization * (
+            model.entity_embedding.norm(p = 3)**3 + 
+            model.relation_embedding.norm(p = 3).norm(p = 3)**3
+        )
+        loss = loss + regularization
+        regularization_log = {'regularization': regularization.item()}
+    else:
+        regularization_log = {}
+    
+    loss.backward()
 
-            optimizer.step()
+    optimizer.step()
 
-            log = {
-                **regularization_log,
-                'positive_sample_loss': positive_sample_loss.item(),
-                'negative_sample_loss': negative_sample_loss.item(),
-                'loss': loss.item()
-            }
-            
-            epoch_logs.append(log)
-        
-        if i % 1000 == 0:
-            logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
-            logging.info(log)
+    log = {
+        **regularization_log,
+        'positive_sample_loss': positive_sample_loss.item(),
+        'negative_sample_loss': negative_sample_loss.item(),
+        'loss': loss.item()
+    }
+    
+    # if i % 1000 == 0:
+    #     logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+    #     logging.info(log)
      
     scheduler.step()
-    # scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
-    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
     
-    return epoch_logs
+    return log
+
+
+# def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
+#     model.train()
+    
+#     epoch_logs = []
+#     for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
+#         for b in (b1, b2):
+#             optimizer.zero_grad()
+            
+#             positive_sample, negative_sample, subsampling_weight, mode = b
+#             positive_sample = positive_sample.to(device)
+#             negative_sample = negative_sample.to(device)
+#             subsampling_weight = subsampling_weight.to(device)
+            
+#             negative_score = model((positive_sample, negative_sample), mode=mode)
+#             if args.negative_adversarial_sampling:
+#                 #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
+#                 negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
+#                                 * F.logsigmoid(-negative_score)).sum(dim = 1)
+#             else:
+#                 negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
+
+#             if args.model.upper() == 'HOUSE':
+#                 if mode == 'head-batch':
+#                     pos_part = positive_sample[:, 0].unsqueeze(dim=1)
+#                 else:
+#                     pos_part = positive_sample[:, 2].unsqueeze(dim=1)
+#                 positive_score = model((positive_sample, pos_part), mode=mode)
+#             else:
+#                 positive_score = model(positive_sample)
+#             positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
+
+#             if args.uni_weight:
+#                 positive_sample_loss = - positive_score.mean()
+#                 negative_sample_loss = - negative_score.mean()
+#             else:
+#                 positive_sample_loss = - (subsampling_weight * positive_score).sum()/subsampling_weight.sum()
+#                 negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
+
+#             loss = (positive_sample_loss + negative_sample_loss)/2
+            
+#             if args.regularization != 0.0:
+#                 #Use L3 regularization for ComplEx and DistMult
+#                 regularization = args.regularization * (
+#                     model.entity_embedding.norm(p = 3)**3 + 
+#                     model.relation_embedding.norm(p = 3).norm(p = 3)**3
+#                 )
+#                 loss = loss + regularization
+#                 regularization_log = {'regularization': regularization.item()}
+#             else:
+#                 regularization_log = {}
+            
+#             loss.backward()
+
+#             optimizer.step()
+
+#             log = {
+#                 **regularization_log,
+#                 'positive_sample_loss': positive_sample_loss.item(),
+#                 'negative_sample_loss': negative_sample_loss.item(),
+#                 'loss': loss.item()
+#             }
+            
+#             epoch_logs.append(log)
+        
+#         if i % 1000 == 0:
+#             logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+#             logging.info(log)
+     
+#     scheduler.step()
+#     # scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
+#     # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+    
+#     return epoch_logs
 
 
 @torch.no_grad()
@@ -290,6 +357,7 @@ def main():
         num_workers=args.num_workers,
         collate_fn=TrainDataset.collate_fn
     )
+    train_iterator = BidirectionalOneShotIterator(train_dataloader_head, train_dataloader_tail)
     
     model = KGEModel(
         model_name=args.model,
@@ -310,26 +378,26 @@ def main():
     init_epoch = 1
     best_val_mrr = 0
     stopupdate = 0
-    args.num_epoch = 3
+    args.max_step = 30000
     
     
-    for epoch in range(init_epoch, args.num_epoch + 1):
-        print(f"=== Epoch: {epoch}")
+    for i in range(init_epoch, args.max_step + 1):
         
-        train_out = train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
+        train_out = train(model, device, train_iterator, optimizer, scheduler, args)
         
-        train_losses = {}
-        for l in train_out[0].keys():
-            train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
-            print(f'Train {l}: {train_losses[l]:.5f}')
+        if i % 100 == 0:
+            print(f"=== {i}-th iteration")
+            logging.info('Training the model... (%d/%d)' % (i, args.max_step))
+            for log in train_out.keys():
+                logging.info(f'Train {l}: {train_out[log]:.5f}')
         
         wandb.log({
-            'Train positive sample loss': train_losses['positive_sample_loss'],
-            'Train negative sample loss': train_losses['negative_sample_loss'],
-            'Train loss': train_losses['loss']
+            'Train positive sample loss': train_out['positive_sample_loss'],
+            'Train negative sample loss': train_out['negative_sample_loss'],
+            'Train loss': train_out['loss']
         })
         
-        if epoch % 3 == 0:
+        if i % 1000 == 0:
             valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
             valid_metrics = {}
             for metric in valid_logs:
@@ -365,6 +433,13 @@ def main():
                 'Test hits@3': test_metrics['hits@3'],
                 'Test hits@10': test_metrics['hits@10']
             })
+            stopupdate = 0
+                
+        else:
+            stopupdate += 1
+            if stopupdate > 5:
+                print(f'early stop at iteration {i}')
+                break
             
     print('')
     for metric in valid_metrics.keys():

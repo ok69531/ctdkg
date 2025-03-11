@@ -242,3 +242,26 @@ class TestDataset(Dataset):
         mode = data[0][2]
 
         return positive_sample, negative_sample, mode
+
+class BidirectionalOneShotIterator(object):
+    def __init__(self, dataloader_head, dataloader_tail):
+        self.iterator_head = self.one_shot_iterator(dataloader_head)
+        self.iterator_tail = self.one_shot_iterator(dataloader_tail)
+        self.step = 0
+        
+    def __next__(self):
+        self.step += 1
+        if self.step % 2 == 0:
+            data = next(self.iterator_head)
+        else:
+            data = next(self.iterator_tail)
+        return data
+    
+    @staticmethod
+    def one_shot_iterator(dataloader):
+        '''
+        Transform a PyTorch Dataloader into python iterator
+        '''
+        while True:
+            for data in dataloader:
+                yield data

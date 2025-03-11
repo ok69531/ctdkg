@@ -20,3 +20,4 @@ compressed
 best_val_log
 saved_model
 openai_key
+tmp.py
