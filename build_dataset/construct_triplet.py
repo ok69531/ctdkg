@@ -145,8 +145,8 @@ def negative_sampling(data, all_true_head, all_true_tail, num_negative = 500):
 def build_cd_graph(file_path = 'raw', save_path = 'processed/cd'):
     ''' Build a Chemical-Disease interaction graph '''
     
-    print('>>> Processing Chemical-Disease Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Chemical-Disease Data ...')
     
     chem_dis_tmp = pd.read_csv(f'{file_path}/CTD_chemicals_diseases.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
 
@@ -209,7 +209,7 @@ def build_cd_graph(file_path = 'raw', save_path = 'processed/cd'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value = edge_type_map[r]).to(torch.long) for (h ,r ,t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
     
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -222,6 +222,7 @@ def build_cd_graph(file_path = 'raw', save_path = 'processed/cd'):
     torch.save(dis_map, f'{save_path}/dis_map')
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
+    print('----------------------------------------------------------------------------')
     print('Chemical-Disease graph is successfully constructed.')
     
     return data, save_path
@@ -230,8 +231,8 @@ def build_cd_graph(file_path = 'raw', save_path = 'processed/cd'):
 def build_cg_graph(file_path = 'raw', save_path = 'processed/cg'):
     ''' Build a Chemical-Gene interaction graph '''
     
-    print(f'>>> Processing Chemical-Gene Data ...')
     print('----------------------------------------------------------------------------')
+    print(f'>>> Processing Chemical-Gene Data ...')
     
     chem_gene_tmp = pd.read_csv(f'{file_path}/CTD_chem_gene_ixns.csv.gz', skiprows = list(range(27)) + [28], compression = 'gzip')
 
@@ -274,7 +275,7 @@ def build_cg_graph(file_path = 'raw', save_path = 'processed/cg'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]).to(torch.long) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(uniq_rel)
+    data.num_relations = len(edge_type_map)
     
     ### save mapping
     if isdir(save_path):
@@ -288,13 +289,14 @@ def build_cg_graph(file_path = 'raw', save_path = 'processed/cg'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
         
     print('Chemical-Gene Graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_cpheno_graph(file_path = 'raw', save_path = 'processed/cpheno'):
-    print('>>> Processing Chemical-Phenotype Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Chemical-Phenotype Data ...')
     
     chem_pheno_tmp = pd.read_csv(
         f'{file_path}/CTD_pheno_term_ixns.csv.gz',
@@ -331,7 +333,7 @@ def build_cpheno_graph(file_path = 'raw', save_path = 'processed/cpheno'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
 
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -345,13 +347,14 @@ def build_cpheno_graph(file_path = 'raw', save_path = 'processed/cpheno'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
 
     print('Chemical-Phenotype graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_cpath_graph(file_path = 'raw', save_path = 'processed/cpath'):
-    print('>>> Processing Chemical-Pathway Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Chemical-Pathway Data ...')
     
     # this file does not have duplicated (chem, pathway) pair
     chem_path_tmp = pd.read_csv(f'{file_path}/CTD_chem_pathways_enriched.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
@@ -383,7 +386,7 @@ def build_cpath_graph(file_path = 'raw', save_path = 'processed/cpath'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value = edge_type_map[r]).to(torch.long) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
     
     ### save mapping
     if isdir(save_path):
@@ -397,13 +400,14 @@ def build_cpath_graph(file_path = 'raw', save_path = 'processed/cpath'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     print('Chemical-Pathway graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_cgo_graph(file_path = 'raw', save_path = 'processed/cgo'):
-    print('>>> Processing Chemical-GeneOntology Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Chemical-GeneOntology Data ...')
     
     chem_go_tmp = pd.read_csv(
         f'{file_path}/CTD_chem_go_enriched.csv.gz',
@@ -457,7 +461,7 @@ def build_cgo_graph(file_path = 'raw', save_path = 'processed/cgo'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
 
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -471,13 +475,14 @@ def build_cgo_graph(file_path = 'raw', save_path = 'processed/cgo'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
 
     print('Chemical-GeneOntology graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
-    print('>>> Processing Gene-Pathway Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Gene-Pathway Data ...')
     
     # this file does not have duplicated (chem, pathway) pair
     gene_path_tmp = pd.read_csv(f'{file_path}/CTD_genes_pathways.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
@@ -510,7 +515,7 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
     
     ### save mapping
     if isdir(save_path):
@@ -524,14 +529,15 @@ def build_gpath_graph(file_path = 'raw', save_path = 'processed/gpath'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     print('Gene-Pathway graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
-    print('This procedure may be time-consuming ...')
-    print('>>> Processing Gene-Disease Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Gene-Disease Data ...')
+    print('>>> This procedure may be time-consuming ...')
     
     gene_dis_tmp = pd.read_csv(f'{file_path}/CTD_genes_diseases.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
 
@@ -594,7 +600,7 @@ def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value = edge_type_map[r]).to(torch.long) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
     
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -608,13 +614,14 @@ def build_gd_graph(file_path = 'raw', save_path = 'processed/gd'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     print('Gene-Disease graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_ggo_graph(file_path = 'raw', save_path = 'processed/ggo'):
-    print('>>> Processing Gene-GeneOntology Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Gene-GeneOntology Data ...')
     
     biological_gene_go_tmp = pd.read_csv(f'{file_path}/CTD_gene_GO_biological.csv')
     celluar_gene_go_tmp = pd.read_csv(f'{file_path}/CTD_gene_GO_cellular.csv')
@@ -668,7 +675,7 @@ def build_ggo_graph(file_path = 'raw', save_path = 'processed/ggo'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
 
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -682,13 +689,14 @@ def build_ggo_graph(file_path = 'raw', save_path = 'processed/ggo'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
 
     print('Gene-GeneOntology graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_gpheno_graph(file_path = 'raw/gene_phenotype', save_path = 'processed/gpheno'):
-    print('>>> Processing Gene-Phenotype Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Gene-Phenotype Data ...')
     
     file_list = os.listdir(file_path)
     gene_pheno_tmp = pd.concat([pd.read_csv(f'{file_path}/{f}') for f in tqdm(file_list)])
@@ -724,7 +732,7 @@ def build_gpheno_graph(file_path = 'raw/gene_phenotype', save_path = 'processed/
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
 
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -738,13 +746,14 @@ def build_gpheno_graph(file_path = 'raw/gene_phenotype', save_path = 'processed/
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
 
     print('Gene-Phenotype graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
-    print('>>> Processing Disease-Pathway Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Disease-Pathway Data ...')
     
     # this file does not have duplicated (chem, pathway) pair
     dis_path_tmp = pd.read_csv(f'{file_path}/CTD_diseases_pathways.csv.gz', skiprows = list(range(27))+[28], compression = 'gzip')
@@ -777,7 +786,7 @@ def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
     
     ### save mapping
     if isdir(save_path):
@@ -791,13 +800,15 @@ def build_dpath_graph(file_path = 'raw', save_path = 'processed/dpath'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     print('Disease-Pathway graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_dpheno_graph(file_path = 'raw', save_path = 'processed/dpheno'):
-    print('>>> Processing Phenotype-Disease Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Phenotype-Disease Data ...')
+    
     biological_pheno_dis_tmp = pd.read_csv(
         f'{file_path}/CTD_Phenotype-Disease_biological_process_associations.csv.gz',
         skiprows = list(range(27))+[28], compression = 'gzip')
@@ -854,7 +865,7 @@ def build_dpheno_graph(file_path = 'raw', save_path = 'processed/dpheno'):
     data.edge_reltype = {
         (h, r, t): torch.full((edge.size(1), 1), fill_value=edge_type_map[r]) for (h, r, t), edge in data.edge_index_dict.items()
     }
-    data.num_relations = len(data.edge_index_dict)
+    data.num_relations = len(edge_type_map)
 
     ### save chemical/disease/rel_type mapping
     if isdir(save_path):
@@ -868,13 +879,14 @@ def build_dpheno_graph(file_path = 'raw', save_path = 'processed/dpheno'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
 
     print('Phenotype-Disease graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     return data, save_path
 
 
 def build_cgd_graph(file_path = 'processed', save_path = 'processed/cgd'):
-    print('This procedure may be time-consuming ...')
-    print('>>> Processing Chemical-Gene-Disease Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Chemical-Gene-Disease Data ...')
+    print('>>> This procedure may be time-consuming ...')
     
     # needs: cg, cd, gd
     
@@ -904,8 +916,8 @@ def build_cgd_graph(file_path = 'processed', save_path = 'processed/cgd'):
     
     data_list = [cg_data, cd_data, gd_data]
     rel_type_list = [list(data.edge_index_dict.keys()) for data in data_list]
-    rel_type_list = list(itertools.chain(*rel_type_list))
-    edge_type_map = {r: i for i, (h, r, t) in enumerate(rel_type_list)}
+    rel_type_list = set([r for (h, r, t) in itertools.chain(*rel_type_list)])
+    edge_type_map = {r: i for i, r in enumerate(rel_type_list)}
     
     # data construction
     data = Data()
@@ -916,7 +928,7 @@ def build_cgd_graph(file_path = 'processed', save_path = 'processed/cgd'):
     }
     
     edge_index_list = [list(data.edge_index_dict.items()) for data in data_list]
-    edge_index_list = list(itertools.chain(*edge_index_list))
+    edge_index_list = set(list(itertools.chain(*edge_index_list)))
     edge_index_dict = {rel: idx for (rel, idx) in edge_index_list}
     
     print('Converting edge_index')
@@ -960,13 +972,14 @@ def build_cgd_graph(file_path = 'processed', save_path = 'processed/cgd'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     print('Chemical-Gene-Disease graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_cgpd_graph(file_path = 'processed', save_path = 'processed/cgpd'):
-    print('>>> Processing Chemical-Gene-Phenotype-Disease Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Chemical-Gene-Phenotype-Disease Data ...')
     
     # needs: cg, cpheno, cd, gpheno, gd
     
@@ -1007,8 +1020,8 @@ def build_cgpd_graph(file_path = 'processed', save_path = 'processed/cgpd'):
     
     data_list = [cg_data, cpheno_data, cd_data, gpheno_data, gd_data]
     rel_type_list = [list(data.edge_index_dict.keys()) for data in data_list]
-    rel_type_list = list(itertools.chain(*rel_type_list))
-    edge_type_map = {r: i for i, (h, r, t) in enumerate(rel_type_list)}
+    rel_type_list = set([r for (h, r, t) in itertools.chain(*rel_type_list)])
+    edge_type_map = {r: i for i, r in enumerate(rel_type_list)}
     
     #
     data = Data()
@@ -1020,7 +1033,7 @@ def build_cgpd_graph(file_path = 'processed', save_path = 'processed/cgpd'):
     }
     
     edge_index_list = [list(data.edge_index_dict.items()) for data in data_list]
-    edge_index_list = list(itertools.chain(*edge_index_list))
+    edge_index_list = set(list(itertools.chain(*edge_index_list)))
     edge_index_dict = {rel: idx for (rel, idx) in edge_index_list}
     
     print('Converting edge index')
@@ -1075,13 +1088,14 @@ def build_cgpd_graph(file_path = 'processed', save_path = 'processed/cgpd'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     print('Chemical-Gene-Phenotype-Disease graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
 
 def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
-    print('>>> Processing Comparative Toxicogenomics Data ...')
     print('----------------------------------------------------------------------------')
+    print('>>> Processing Comparative Toxicogenomics Data ...')
     
     # cgpd, cpath, cgo
     # gpath, ggo
@@ -1141,8 +1155,8 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
     
     data_list = [cgpd_data, cpath_data, cgo_data, gpath_data, ggo_data, dpath_data, dpheno_data]
     rel_type_list = [list(data.edge_index_dict.keys()) for data in data_list]
-    rel_type_list = list(itertools.chain(*rel_type_list))
-    edge_type_map = {r: i for i, (h, r, t) in enumerate(rel_type_list)}
+    rel_type_list = set([r for (h, r, t) in itertools.chain(*rel_type_list)])
+    edge_type_map = {r: i for i, r in enumerate(rel_type_list)}
     
     #
     data = Data()
@@ -1243,6 +1257,7 @@ def build_ctd_graph(file_path = 'processed', save_path = 'processed/ctd'):
     torch.save(edge_type_map, f'{save_path}/rel_type_map')
     
     print('CTD graph is successfully constructed.')
+    print('----------------------------------------------------------------------------')
     
     return data, save_path
 
@@ -1326,19 +1341,19 @@ def build_benchmarks(data_type, train_frac, valid_frac):
 
 
 if __name__ == '__main__':
-    build_cg_graph()
-    build_cpheno_graph()
-    build_cpath_graph()
-    build_cgo_graph()
-    build_gd_graph()
-    build_gpheno_graph()
-    build_gpath_graph()
-    build_ggo_graph()
-    build_dpheno_graph()
-    build_dpath_graph()
-    build_benchmarks('cd', 0.9, 0.05)
-    # build_benchmarks('cg', 0.9, 0.05)
-    # build_benchmarks('gd', 0.98, 0.01)
-    build_benchmarks('cgd', 0.98, 0.01)
+    # build_cg_graph()
+    # build_cpheno_graph()
+    # build_cpath_graph()
+    # build_cgo_graph()
+    # build_gd_graph()
+    # build_gpheno_graph()
+    # build_gpath_graph()
+    # build_ggo_graph()
+    # build_dpheno_graph()
+    # build_dpath_graph()
+    # build_benchmarks('cd', 0.9, 0.05)
+    # # build_benchmarks('cg', 0.9, 0.05)
+    # # build_benchmarks('gd', 0.98, 0.01)
+    # build_benchmarks('cgd', 0.98, 0.01)
     build_benchmarks('cgpd', 0.98, 0.01)
     build_benchmarks('ctd', 0.98, 0.01)

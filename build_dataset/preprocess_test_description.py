@@ -336,7 +336,7 @@ def preprocess_chemical_description(chem_desc, name_maps, id_maps, inv_id_maps, 
     client = openai.OpenAI(api_key = open('openai_key', 'r').readline())
     
     # for i, description in enumerate(tqdm(chem_desc.FilteredDescription)):
-    for i in tqdm(test_idx[713:]):
+    for i in tqdm(test_idx):
         description = chem_desc.FilteredDescription.iloc[i]
         remove_list = have_to_removed[chem_desc.ChemicalID.iloc[i]]
         
@@ -389,7 +389,7 @@ def preprocess_gene_description(gene_desc, name_maps, id_maps, inv_id_maps, all_
         edges = torch.cat([edge for k, edge in tmp.items()], dim = 1).numpy()
         edges = np.unique(edges, axis = 1)
         
-        head_to_id = np.vectorize(inv_gene_map.get)(edges[0])
+        head_to_id = np.vectorize(all_inv_gene_map.get)(edges[0])
         tail_to_id = np.vectorize(tail_id_map.get)(edges[1])
         
         for head_id, tail_id in zip(head_to_id, tail_to_id):
@@ -733,9 +733,9 @@ def preprocess_description(entity_type: str):
 
 
 if __name__ == '__main__':
-    preprocess_description('chemical')
+    # preprocess_description('chemical')
     # preprocess_description('gene')
     # preprocess_description('disease')
     # preprocess_description('phenotype')
-    # preprocess_description('pathway')
-    # preprocess_description('go')
+    preprocess_description('pathway')
+    preprocess_description('go')

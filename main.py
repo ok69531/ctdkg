@@ -16,7 +16,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from module.model import KGEModel
 from module.set_seed import set_seed
 from module.argument import parse_args
-from module.dataset import LinkPredDataset, TrainDataset, TestDataset
+from module.dataset import LinkPredDataset, TrainDataset, TestDataset, BidirectionalOneShotIterator
 
 
 try:
@@ -31,84 +31,149 @@ print(f'cuda is available: {torch.cuda.is_available()}')
 
 wandb.login(key = open('module/wandb_key.txt', 'r').readline())
 wandb.init(project = f'ctdkg', entity = 'soyoung')
-wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
+wandb.run.name = f'{args.dataset}-{args.model}{args.seed}'
+# wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
 wandb.run.save()
 wandb.config.update(args)
 
 
-def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
+def train(model, device, train_iterator, optimizer, scheduler, args):
     model.train()
     
-    epoch_logs = []
-    for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
-        for b in (b1, b2):
-            optimizer.zero_grad()
-            
-            positive_sample, negative_sample, subsampling_weight, mode = b
-            positive_sample = positive_sample.to(device)
-            negative_sample = negative_sample.to(device)
-            subsampling_weight = subsampling_weight.to(device)
-            
-            negative_score = model((positive_sample, negative_sample), mode=mode)
-            if args.negative_adversarial_sampling:
-                #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
-                negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
-                                * F.logsigmoid(-negative_score)).sum(dim = 1)
-            else:
-                negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
-
-            if args.model.upper() == 'HOUSE':
-                if mode == 'head-batch':
-                    pos_part = positive_sample[:, 0].unsqueeze(dim=1)
-                else:
-                    pos_part = positive_sample[:, 2].unsqueeze(dim=1)
-                positive_score = model((positive_sample, pos_part), mode=mode)
-            else:
-                positive_score = model(positive_sample)
-            positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
-
-            if args.uni_weight:
-                positive_sample_loss = - positive_score.mean()
-                negative_sample_loss = - negative_score.mean()
-            else:
-                positive_sample_loss = - (subsampling_weight * positive_score).sum()/subsampling_weight.sum()
-                negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
-
-            loss = (positive_sample_loss + negative_sample_loss)/2
-            
-            if args.regularization != 0.0:
-                #Use L3 regularization for ComplEx and DistMult
-                regularization = args.regularization * (
-                    model.entity_embedding.norm(p = 3)**3 + 
-                    model.relation_embedding.norm(p = 3).norm(p = 3)**3
-                )
-                loss = loss + regularization
-                regularization_log = {'regularization': regularization.item()}
-            else:
-                regularization_log = {}
-            
-            loss.backward()
-
-            optimizer.step()
-
-            log = {
-                **regularization_log,
-                'positive_sample_loss': positive_sample_loss.item(),
-                'negative_sample_loss': negative_sample_loss.item(),
-                'loss': loss.item()
-            }
-            
-            epoch_logs.append(log)
-        
-        if i % 1000 == 0:
-            logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
-            logging.info(log)
-     
-    scheduler.step()
-    # scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
-    # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+    optimizer.zero_grad()
     
-    return epoch_logs
+    positive_sample, negative_sample, subsampling_weight, mode = next(train_iterator)
+    positive_sample = positive_sample.to(device)
+    negative_sample = negative_sample.to(device)
+    subsampling_weight = subsampling_weight.to(device)
+    
+    negative_score = model((positive_sample, negative_sample), mode=mode)
+    if args.negative_adversarial_sampling:
+        #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
+        negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
+                        * F.logsigmoid(-negative_score)).sum(dim = 1)
+    else:
+        negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
+
+    if args.model.upper() == 'HOUSE':
+        if mode == 'head-batch':
+            pos_part = positive_sample[:, 0].unsqueeze(dim=1)
+        else:
+            pos_part = positive_sample[:, 2].unsqueeze(dim=1)
+        positive_score = model((positive_sample, pos_part), mode=mode)
+    else:
+        positive_score = model(positive_sample)
+    positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
+
+    if args.uni_weight:
+        positive_sample_loss = - positive_score.mean()
+        negative_sample_loss = - negative_score.mean()
+    else:
+        positive_sample_loss = - (subsampling_weight * positive_score).sum()/subsampling_weight.sum()
+        negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
+
+    loss = (positive_sample_loss + negative_sample_loss)/2
+    
+    if args.regularization != 0.0:
+        #Use L3 regularization for ComplEx and DistMult
+        regularization = args.regularization * (
+            model.entity_embedding.norm(p = 3)**3 + 
+            model.relation_embedding.norm(p = 3).norm(p = 3)**3
+        )
+        loss = loss + regularization
+        regularization_log = {'regularization': regularization.item()}
+    else:
+        regularization_log = {}
+    
+    loss.backward()
+
+    optimizer.step()
+
+    log = {
+        **regularization_log,
+        'positive_sample_loss': positive_sample_loss.item(),
+        'negative_sample_loss': negative_sample_loss.item(),
+        'loss': loss.item()
+    }
+    
+    scheduler.step()
+    
+    return log
+
+
+# def train(model, device, head_loader, tail_loader, optimizer, scheduler, args):
+#     model.train()
+    
+#     epoch_logs = []
+#     for i, (b1, b2) in enumerate(zip(head_loader, tail_loader)):
+#         for b in (b1, b2):
+#             optimizer.zero_grad()
+            
+#             positive_sample, negative_sample, subsampling_weight, mode = b
+#             positive_sample = positive_sample.to(device)
+#             negative_sample = negative_sample.to(device)
+#             subsampling_weight = subsampling_weight.to(device)
+            
+#             negative_score = model((positive_sample, negative_sample), mode=mode)
+#             if args.negative_adversarial_sampling:
+#                 #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
+#                 negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
+#                                 * F.logsigmoid(-negative_score)).sum(dim = 1)
+#             else:
+#                 negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
+
+#             if args.model.upper() == 'HOUSE':
+#                 if mode == 'head-batch':
+#                     pos_part = positive_sample[:, 0].unsqueeze(dim=1)
+#                 else:
+#                     pos_part = positive_sample[:, 2].unsqueeze(dim=1)
+#                 positive_score = model((positive_sample, pos_part), mode=mode)
+#             else:
+#                 positive_score = model(positive_sample)
+#             positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
+
+#             if args.uni_weight:
+#                 positive_sample_loss = - positive_score.mean()
+#                 negative_sample_loss = - negative_score.mean()
+#             else:
+#                 positive_sample_loss = - (subsampling_weight * positive_score).sum()/subsampling_weight.sum()
+#                 negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
+
+#             loss = (positive_sample_loss + negative_sample_loss)/2
+            
+#             if args.regularization != 0.0:
+#                 #Use L3 regularization for ComplEx and DistMult
+#                 regularization = args.regularization * (
+#                     model.entity_embedding.norm(p = 3)**3 + 
+#                     model.relation_embedding.norm(p = 3).norm(p = 3)**3
+#                 )
+#                 loss = loss + regularization
+#                 regularization_log = {'regularization': regularization.item()}
+#             else:
+#                 regularization_log = {}
+            
+#             loss.backward()
+
+#             optimizer.step()
+
+#             log = {
+#                 **regularization_log,
+#                 'positive_sample_loss': positive_sample_loss.item(),
+#                 'negative_sample_loss': negative_sample_loss.item(),
+#                 'loss': loss.item()
+#             }
+            
+#             epoch_logs.append(log)
+        
+#         if i % 1000 == 0:
+#             logging.info('Training the model... (%d/%d)' % (i, int(len(head_loader))))
+#             logging.info(log)
+     
+#     scheduler.step()
+#     # scheduler.step(sum([log['positive_sample_loss'] for log in epoch_logs])/len(epoch_logs))
+#     # scheduler.step(sum([log['loss'] for log in epoch_logs])/len(epoch_logs))
+    
+#     return epoch_logs
 
 
 @torch.no_grad()
@@ -254,16 +319,6 @@ def main():
     set_seed(args.seed)
     print(f'====================== run: {args.seed} ======================')
 
-    if args.dataset in ['gd', 'cgd', 'cgpd', 'ctd']:
-        idx = random.sample(range(len(train_triples['head'])), int(len(train_triples['head'])*args.train_frac))
-
-        train_triples['head'] = train_triples['head'][idx]
-        train_triples['tail'] = train_triples['tail'][idx]
-        train_triples['relation'] = train_triples['relation'][idx]
-        train_triples['head_type'] = [train_triples['head_type'][i] for i in idx]
-        train_triples['tail_type'] = [train_triples['tail_type'][i] for i in idx]
-
-    
     train_dataloader_head = DataLoader(
         TrainDataset(train_triples, nentity, nrelation, 
             args.negative_sample_size, 'head-batch',
@@ -285,6 +340,7 @@ def main():
         num_workers=args.num_workers,
         collate_fn=TrainDataset.collate_fn
     )
+    train_iterator = BidirectionalOneShotIterator(train_dataloader_head, train_dataloader_tail)
     
     # Set training configuration
     # if args.model.upper() == 'GIE':
@@ -318,13 +374,12 @@ def main():
         filter(lambda p: p.requires_grad, model.parameters()), 
         lr=args.learning_rate
     )
-    scheduler = StepLR(optimizer, step_size=30, gamma=0.8)
+    scheduler = StepLR(optimizer, step_size=30000, gamma=0.8)
     # scheduler = ReduceLROnPlateau(optimizer, 'min')
     init_epoch = 1
     best_val_mrr = 0
     stopupdate = 0
     
-    file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}'
     if args.init_checkpoint:
         check_points = torch.load(f'{save_path}/{file_name}_epoch{args.init_checkpoint}.pt')
         init_epoch = check_points['epoch'] +1
@@ -334,25 +389,25 @@ def main():
         optimizer.load_state_dict(check_points['optimizer_state_dict'])
         scheduler.load_state_dict(check_points['scheduler_dict'])
     
-    for epoch in range(init_epoch, args.num_epoch + 1):
-        print(f"=== Epoch: {epoch}")
+    for i in range(1, args.max_step + 1):
         
         train_out = train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
         
-        train_losses = {}
-        for l in train_out[0].keys():
-            train_losses[l] = sum([log[l] for log in train_out])/len(train_out)
-            print(f'Train {l}: {train_losses[l]:.5f}')
+        if i % 100 == 0:
+            print(f"=== {i}-th iteration")
+            logging.info('Training the model... (%d/%d)' % (i, args.max_step))
+            for log in train_out.keys():
+                logging.info(f'Train {log}: {train_out[log]:.5f}')
         
         wandb.log({
-            'Train positive sample loss': train_losses['positive_sample_loss'],
-            'Train negative sample loss': train_losses['negative_sample_loss'],
-            'Train loss': train_losses['loss']
+            'Train positive sample loss': train_out['positive_sample_loss'],
+            'Train negative sample loss': train_out['negative_sample_loss'],
+            'Train loss': train_out['loss']
         })
         
         check_points = {
             'seed': args.seed,
-            'epoch': epoch,
+            'iteration': i,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_dict': scheduler.state_dict(),
@@ -366,7 +421,7 @@ def main():
         # artifact.add_file(f'{save_path}/{file_name}_epoch{epoch}.pt')
         # wandb.log_artifact(artifact)
         
-        if epoch % 10 == 0:
+        if i % 1000 == 0:
             valid_logs = evaluate(model, valid_dataloader_head, valid_dataloader_tail, args)
             valid_metrics = {}
             for metric in valid_logs:
@@ -404,10 +459,10 @@ def main():
             })
             
             if valid_metrics['mrr'] > best_val_mrr:
-                best_epoch = epoch
+                best_iters = i
                 best_val_mrr = valid_metrics['mrr']
                 best_val_result = {
-                    'best_epoch': best_epoch,
+                    'best_iters': best_iters,
                     'best_val_mr': valid_metrics['mr'],
                     'best_val_mrr': valid_metrics['mrr'],
                     'best_val_hit1': valid_metrics['hits@1'],
@@ -426,17 +481,18 @@ def main():
                 
             else:
                 stopupdate += 1
-                if stopupdate > 2:
-                    print(f'early stop at eopch {epoch}')
+                if stopupdate > 5:
+                    print(f'early stop at iteration {i}')
                     break
                 
             check_points = {'seed': args.seed,
-                            'best_epoch': best_epoch,
+                            'best_epoch': best_iters,
                             'model_state_dict': model_params,
                             'optimizer_state_dict': optim_dict,
                             'scheduler_dict': scheduler_dict}
             
-            file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
+            file_name = f'seed{args.seed}.pt'
+            # file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
             torch.save(check_points, f'{save_path}/{file_name}')
             
             
