@@ -9,7 +9,6 @@ def parse_args(args=None):
     
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--dataset', type=str, default='cd', help='dataset name, default to cd (cd, cg-v1, cg-v2, gd, cgd, cgpd, ctd)')
-    parser.add_argument('--train_frac', type=float, default=0.3, help='fraction of training data for large scale dataset')
     parser.add_argument('--model', default='TransE', type=str, help='TransE, RotatE, HAKE, GIE, HOUSE, TripleRE, DistMult, ComplEx, conve, rgcn, compgcn')
     parser.add_argument('--num_entity_embedding', default=1, type=int)
     parser.add_argument('--num_relation_embedding', default=1, type=int)
