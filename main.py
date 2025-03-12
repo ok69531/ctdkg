@@ -391,7 +391,7 @@ def main():
     
     for i in range(1, args.max_step + 1):
         
-        train_out = train(model, device, train_dataloader_head, train_dataloader_tail, optimizer, scheduler, args)
+        train_out = train(model, device, train_iterator, optimizer, scheduler, args)
         
         if i % 100 == 0:
             print(f"=== {i}-th iteration")
