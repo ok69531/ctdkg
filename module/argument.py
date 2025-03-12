@@ -34,7 +34,7 @@ def parse_args(args=None):
     parser.add_argument('--housd_num', default=1, type=int)
     parser.add_argument('--thred', default=0.5, type=float)
     
-    parser.add_argument('--learning_rate', default=0.0001, type=float)
+    parser.add_argument('--learning_rate', default=0.0005, type=float)
     parser.add_argument('--num_workers', default=4, type = int)
     parser.add_argument('--init_checkpoint', default=None, type=str)
     parser.add_argument('--max_step', default = 100000, type = int)
