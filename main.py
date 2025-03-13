@@ -17,7 +17,7 @@ from module.model import KGEModel
 from module.set_seed import set_seed
 from module.argument import parse_args
 from module.dataset import LinkPredDataset, TrainDataset, TestDataset, BidirectionalOneShotIterator
-
+from compile_neighbors import CompilERegularizer, DURA
 
 try:
     args = parse_args()
@@ -37,7 +37,7 @@ wandb.run.save()
 wandb.config.update(args)
 
 
-def train(model, device, train_iterator, optimizer, scheduler, args):
+def train(model, device, train_iterator, optimizer, scheduler, args, regularizer = None, Dura_reg = None):
     model.train()
     
     optimizer.zero_grad()
@@ -47,7 +47,11 @@ def train(model, device, train_iterator, optimizer, scheduler, args):
     negative_sample = negative_sample.to(device)
     subsampling_weight = subsampling_weight.to(device)
     
-    negative_score = model((positive_sample, negative_sample), mode=mode)
+    if args.model == 'CompilE':
+        negative_score, _ = model((positive_sample, negative_sample), mode=mode)
+    else:
+        negative_score = model((positive_sample, negative_sample), mode=mode)
+
     if args.negative_adversarial_sampling:
         #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
         negative_score = (F.softmax(negative_score * args.adversarial_temperature, dim = 1).detach() 
@@ -55,12 +59,18 @@ def train(model, device, train_iterator, optimizer, scheduler, args):
     else:
         negative_score = F.logsigmoid(-negative_score).mean(dim = 1)
 
-    if args.model.upper() == 'HOUSE':
-        if mode == 'head-batch':
-            pos_part = positive_sample[:, 0].unsqueeze(dim=1)
-        else:
-            pos_part = positive_sample[:, 2].unsqueeze(dim=1)
-        positive_score = model((positive_sample, pos_part), mode=mode)
+    # if args.model.upper() == 'HOUSE':
+    #     if mode == 'head-batch':
+    #         pos_part = positive_sample[:, 0].unsqueeze(dim=1)
+    #     else:
+    #         pos_part = positive_sample[:, 2].unsqueeze(dim=1)
+    #     positive_score = model((positive_sample, pos_part), mode=mode)
+    # else:
+    
+    if args.model == 'CompilE':
+        positive_score, factors = model(positive_sample)
+        reg_loss = regularizer.forward(positive_sample, (model.entity_embedding, model.relation_embedding))
+        reg_loss += Dura_reg(factors)
     else:
         positive_score = model(positive_sample)
     positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
@@ -73,6 +83,8 @@ def train(model, device, train_iterator, optimizer, scheduler, args):
         negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
 
     loss = (positive_sample_loss + negative_sample_loss)/2
+    if args.model == 'CompilE':
+        loss = loss + reg_loss
     
     if args.regularization != 0.0:
         #Use L3 regularization for ComplEx and DistMult
@@ -187,7 +199,10 @@ def evaluate(model, head_loader, tail_loader, args):
             positive_sample = positive_sample.to(device)
             negative_sample = negative_sample.to(device)
             
-            score = model((positive_sample, negative_sample), mode)
+            if args.model == 'CompilE':
+                score = model.compile_score((positive_sample, negative_sample), mode)
+            else:
+                score = model((positive_sample, negative_sample), mode)
 
             y_pred_pos = score[:, 0]
             y_pred_neg = score[:, 1:]
@@ -360,6 +375,7 @@ def main():
     #         house_dim=args.house_dim, housd_num=args.housd_num, thred=args.thred
     #     ).to(device)
     # else:
+    
     model = KGEModel(
         model_name=args.model,
         nentity=nentity,
@@ -380,6 +396,13 @@ def main():
     best_val_mrr = 0
     stopupdate = 0
     
+    if args.model == 'CompilE':
+        trains = torch.stack([train_triples['head'], train_triples['relation'], train_triples['tail']]).t()
+        composite_regularizer = CompilERegularizer(args, args.dataset, trains, args.nentity, args.nrelation)
+        Dura_reg = DURA(0.05)
+    else:
+        composite_regularizer = Dura_reg = None
+    
     if args.init_checkpoint:
         check_points = torch.load(f'{save_path}/{file_name}_epoch{args.init_checkpoint}.pt')
         init_epoch = check_points['epoch'] +1
@@ -390,8 +413,7 @@ def main():
         scheduler.load_state_dict(check_points['scheduler_dict'])
     
     for i in range(1, args.max_step + 1):
-        
-        train_out = train(model, device, train_iterator, optimizer, scheduler, args)
+        train_out = train(model, device, train_iterator, optimizer, scheduler, args, composite_regularizer, Dura_reg)
         
         if i % 100 == 0:
             print(f"=== {i}-th iteration")
@@ -405,14 +427,14 @@ def main():
             'Train loss': train_out['loss']
         })
         
-        check_points = {
-            'seed': args.seed,
-            'iteration': i,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'scheduler_dict': scheduler.state_dict(),
-            'best_mrr': best_val_mrr,
-            'stopupdate': stopupdate}
+        # check_points = {
+        #     'seed': args.seed,
+        #     'iteration': i,
+        #     'model_state_dict': model.state_dict(),
+        #     'optimizer_state_dict': optimizer.state_dict(),
+        #     'scheduler_dict': scheduler.state_dict(),
+        #     'best_mrr': best_val_mrr,
+        #     'stopupdate': stopupdate}
 
         # artifact = wandb.Artifact(
         #     f'{args.dataset}_{args.model}', 
@@ -426,7 +448,6 @@ def main():
             valid_metrics = {}
             for metric in valid_logs:
                 valid_metrics[metric[:-5]] = torch.cat(valid_logs[metric]).mean().item()       
-
             
             print('----------')
             print(f"Valid MR: {valid_metrics['mr']:.5f}")
@@ -474,6 +495,7 @@ def main():
                     'final_test_hit3': test_metrics['hits@3'],
                     'final_test_hit10': test_metrics['hits@10']
                 }
+                
                 model_params = deepcopy(model.state_dict())
                 optim_dict = deepcopy(optimizer.state_dict())
                 scheduler_dict = deepcopy(scheduler.state_dict())
@@ -481,30 +503,30 @@ def main():
                 
             else:
                 stopupdate += 1
-                if stopupdate > 5:
-                    print(f'early stop at iteration {i}')
-                    break
-                
-            check_points = {'seed': args.seed,
-                            'best_epoch': best_iters,
-                            'model_state_dict': model_params,
-                            'optimizer_state_dict': optim_dict,
-                            'scheduler_dict': scheduler_dict}
-            
-            file_name = f'seed{args.seed}.pt'
-            # file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
-            torch.save(check_points, f'{save_path}/{file_name}')
-            
-            
-            log_save_path = f'best_val_log/{args.dataset}'
-            if os.path.isdir(log_save_path):
-                pass
-            else:
-                os.makedirs(log_save_path)
-            torch.save(best_val_result, f'{log_save_path}/{args.model}_{args.seed}')
+        
+        if stopupdate > 5:
+            print(f'early stop at iteration {i}')
+            break
     
     wandb.log(best_val_result)
+    # saving checkpoints and results
+    check_points = {'seed': args.seed,
+                    'best_iters': best_iters,
+                    'model_state_dict': model_params,
+                    'optimizer_state_dict': optim_dict,
+                    'scheduler_dict': scheduler_dict}
+    
+    file_name = f'seed{args.seed}.pt'
+    # file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
+    torch.save(check_points, os.path.join(save_path, file_name))
 
+    log_save_path = f'best_val_log/{args.dataset}'
+    if os.path.isdir(log_save_path):
+        pass
+    else:
+        os.makedirs(log_save_path)
+    torch.save(best_val_result, f'{log_save_path}/{args.model}_{args.seed}')
+        
     print('')
     for metric in best_val_result.keys():
         print(f'{metric}: {best_val_result[metric]:.5f}')

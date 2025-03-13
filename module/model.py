@@ -300,8 +300,6 @@ class KGEModel(nn.Module):
         head = F.normalize(head, 2, -1)
         tail = F.normalize(tail, 2, -1)
         
-        if mode == 'head-batch':
-            score = head * re_head + (re_mid - tail * re_tail)
         score = head * re_head - tail * re_tail + re_mid
         score = self.gamma.item() - torch.norm(score, p = 1, dim = 2)
         
@@ -352,6 +350,31 @@ class KGEModel(nn.Module):
         
         return score
     
+    def CompilE(self, head, relation, tail, mode):
+        re_head, im_head = torch.chunk(head, 2, dim=2)
+        re_relation, im_relation = torch.chunk(relation, 2, dim=2)
+        re_tail, im_tail = torch.chunk(tail, 2, dim=2)
+
+        score = self.entity_embedding.unsqueeze(1)
+        re_score, im_score = torch.chunk(score, 2, dim=2)
+
+        if mode == 'head-batch':
+            re_score = re_relation * re_tail + im_relation * im_tail
+            im_score = re_relation * im_tail - im_relation * re_tail
+            score = re_head * re_score + im_head * im_score
+        else:
+            re_score = re_head * re_relation - im_head * im_relation
+            im_score = re_head * im_relation + im_head * re_relation
+            score = re_score * re_tail + im_score * im_tail
+
+        score = score.sum(dim = 2)
+        factors = (
+            torch.sqrt(re_head ** 2 + im_head **2),
+            torch.sqrt(re_relation ** 2 + im_relation **2),
+            torch.sqrt(re_tail ** 2 + im_tail **2)
+        )
+        return score, factors
+    
     def normalization(self, quaternion, split_dim=2):  # vectorized quaternion bs x 4dim
         size = quaternion.size(split_dim) // 4
         quaternion = quaternion.reshape(-1, 4, size)  # bs x 4 x dim
@@ -389,6 +412,45 @@ class KGEModel(nn.Module):
 
         return torch.cat([qp_r, qp_i, qp_j, qp_k], dim=2)
 
+    def compile_score(self, sample, mode='single'):
+        if mode == 'single':
+            batch_size, negative_sample_size = sample.size(0), 1
+            head = torch.index_select(self.entity_embedding, dim=0, index=sample[:,0]).unsqueeze(1)
+            relation = torch.index_select(self.relation_embedding, dim=0, index=sample[:,1]).unsqueeze(1)
+            tail = torch.index_select(self.entity_embedding, dim=0, index=sample[:,2]).unsqueeze(1)
+            
+        elif mode == 'head-batch':
+            tail_part, head_part = sample
+            batch_size, negative_sample_size = head_part.size(0), head_part.size(1)
+            head = torch.index_select(self.entity_embedding, dim=0, index=head_part.view(-1)).view(batch_size, negative_sample_size, -1)
+            relation = torch.index_select(self.relation_embedding, dim=0, index=tail_part[:, 1]).unsqueeze(1)
+            tail = torch.index_select(self.entity_embedding, dim=0, index=tail_part[:, 2]).unsqueeze(1)
+            
+        elif mode == 'tail-batch':
+            head_part, tail_part = sample
+            batch_size, negative_sample_size = tail_part.size(0), tail_part.size(1)
+            head = torch.index_select(self.entity_embedding, dim=0, index=head_part[:, 0]).unsqueeze(1)
+            relation = torch.index_select(self.relation_embedding,dim=0,index=head_part[:, 1]).unsqueeze(1)
+            tail = torch.index_select(self.entity_embedding, dim=0, index=tail_part.view(-1)).view(batch_size, negative_sample_size, -1)
+            
+        else:
+            raise ValueError('mode %s not supported' % mode)
+
+        re_head, im_head = torch.chunk(head, 2, dim=2)
+        re_relation, im_relation = torch.chunk(relation, 2, dim=2)
+        re_tail, im_tail = torch.chunk(tail, 2, dim=2)
+
+        if mode == 'head-batch':
+            re_score = re_relation * re_tail + im_relation * im_tail
+            im_score = re_relation * im_tail - im_relation * re_tail
+            score = re_head * re_score + im_head * im_score
+        else:
+            re_score = re_head * re_relation - im_head * im_relation
+            im_score = re_head * im_relation + im_head * re_relation
+            score = re_score * re_tail + im_score * im_tail
+
+        score = score.sum(dim = 2)
+        return score
 
 
 # --------------------------------- RGCN --------------------------------- #

@@ -733,9 +733,9 @@ def preprocess_description(entity_type: str):
 
 
 if __name__ == '__main__':
-    # preprocess_description('chemical')
-    # preprocess_description('gene')
-    # preprocess_description('disease')
-    # preprocess_description('phenotype')
+    preprocess_description('chemical')
+    preprocess_description('gene')
+    preprocess_description('disease')
+    preprocess_description('phenotype')
     preprocess_description('pathway')
     preprocess_description('go')
