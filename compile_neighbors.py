@@ -1,6 +1,6 @@
 import tqdm
 import random
-import pickle
+# import pickle
 import torch
 from torch import nn
 from collections import defaultdict
@@ -17,7 +17,7 @@ class CompilERegularizer():
         self.forward_model = args.model
 
         self.nrelation = nrelation
-        mode_list = ['hrt-t-hrt', 'hrt-h-hrt']
+        mode_list = ['hrt-t-hrt']
 
         self.build_lists(args, mode_list)
 
@@ -97,39 +97,35 @@ class CompilERegularizer():
                 while len(self.neighbors[mode][t1]) < self.n_pos:
                     self.neighbors[mode][t1].append((0,0,0))
 
-    def load_pickle(self): # load existing connected(h), defined in Eq (24) of Section 4.3
+    def load_file(self): # load existing connected(h), defined in Eq (24) of Section 4.3
         if self.dist_func == "jaccard":
-            neighbors_file = f'dataset/{self.name}/processed/neighbors.pkl'
-            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size.pkl'
+            neighbors_file = f'dataset/{self.name}/processed/neighbors'
+            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size'
         else:
-            neighbors_file = f'dataset/{self.name}/processed/neighbors_rand.pkl'
-            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size_rand.pkl'
+            neighbors_file = f'dataset/{self.name}/processed/neighbors_rand'
+            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size_rand'
         if os.path.exists(neighbors_file):
-            print('load neighbors pickle')
-            with open(neighbors_file, "rb") as f:
-                self.neighbors = pickle.load(f)
-            with open(neighbors_size_file, "rb") as f:
-                self.neighbors_size = pickle.load(f)
-            print('load neighbors pickle finished')
+            print('load neighbors')
+            self.neighbors = torch.load(neighbors_file)
+            self.neighbors_size = torch.load(neighbors_size_file)
+            print('load neighbors finished')
             print('loaded' + str([t for t in self.neighbors_size.keys()]))
 
-    def dump_pickle(self): # save connected(h), defined in Eq (24) of Section 4.3
+    def dump_file(self): # save connected(h), defined in Eq (24) of Section 4.3
         if self.dist_func == "jaccard":
-            neighbors_file = f'dataset/{self.name}/processed/neighbors.pkl'
-            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size.pkl'
+            neighbors_file = f'dataset/{self.name}/processed/neighbors'
+            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size'
         else:
-            neighbors_file = f'dataset/{self.name}/processed/neighbors_rand.pkl'
-            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size_rand.pkl'
-        print('dump neighbors pickle')
-        with open(neighbors_file, "wb") as f:
-            pickle.dump(self.neighbors, f)
-        with open(neighbors_size_file, "wb") as f:
-            pickle.dump(self.neighbors_size, f)
-        print('dump neighbors pickle finished')
+            neighbors_file = f'dataset/{self.name}/processed/neighbors_rand'
+            neighbors_size_file = f'dataset/{self.name}/processed/neighbors_size_rand'
+        # print('dump neighbors')
+        torch.save(self.neighbors, neighbors_file)
+        torch.save(self.neighbors_size, neighbors_size_file)
+        # print('dump neighbors finished')
 
     def build_neighbors(self): # build connected(h), defined in Eq (24) of Section 4.3
         if self.load_cached_neighbors:
-            self.load_pickle()
+            self.load_file()
         modify_flag = False
 
         loaded_modes = [t for t in self.neighbors_size.keys()]
@@ -162,6 +158,7 @@ class CompilERegularizer():
                 tuple_features[this_tuple] = set(features)
                 for f in features:
                     features_tuple[f].append(this_tuple)
+            i=1
             for t1 in tqdm.tqdm(tuple_features, desc = 'compute neighbors {}'.format(mode)): # [(1174,186,0),(2160,186,0),(4994,186+474//2,0)]:
                 neighbors = set()
                 for f in tuple_features[t1]:
@@ -188,8 +185,12 @@ class CompilERegularizer():
                         self.neighbors[mode_this][t1] = [t[0] for t in dist[mode_this][:self.neighbors_size[mode_this][t1]]]
                         while len(self.neighbors[mode_this][t1]) < self.MAX_K:
                             self.neighbors[mode_this][t1].append((0,0,0))
+                i+=1
+                if i % 1000 == 0:
+                    self.dump_file()
         if modify_flag and self.load_cached_neighbors:
-            self.dump_pickle()
+            self.dump_file()
+            print('dump neighbors')
 
         self.fill_zeros()
 
@@ -247,9 +248,12 @@ class CompilERegularizer():
                 size.append(s)
 
         idx = torch.LongTensor(idx).cuda()
-        h_emb = embeddings[0](idx[:, :, 0])
-        r_emb = embeddings[1](idx[:, :, 1])
-        t_emb = embeddings[0](idx[:, :, 2])
+        h_emb = embeddings[0](idx[:, :, 0]).unsqueeze(1)
+        r_emb = embeddings[1](idx[:, :, 1]).unsqueeze(1)
+        t_emb = embeddings[0](idx[:, :, 2]).unsqueeze(1)
+        # h_emb = embeddings[0](idx[:, :, 0])
+        # r_emb = embeddings[1](idx[:, :, 1])
+        # t_emb = embeddings[0](idx[:, :, 2])
 
         return h_emb, r_emb, t_emb, idx, size
 
@@ -269,8 +273,8 @@ class CompilERegularizer():
   
             pos_emb = emb_func(pos_emb_h, pos_emb_r, pos_emb_t,emb_mode)
             target_emb = emb_func(embeddings[0](x[:, 0]).unsqueeze(1),
-                                                embeddings[1](x[:, 1]).unsqueeze(1),
-                                                embeddings[0](x[:, 2]).unsqueeze(1), emb_mode)
+                                  embeddings[1](x[:, 1]).unsqueeze(1),
+                                  embeddings[0](x[:, 2]).unsqueeze(1), emb_mode)
             
             i_reg = dis_func(target_emb, pos_emb, pos_size) * weight
             i_reg /= len(self.mode_list)
@@ -394,3 +398,6 @@ for args.dataset in ['cd', 'cgd', 'cgpd', 'ctd']:
 
     trains = torch.stack([train_triples['head'], train_triples['relation'], train_triples['tail']]).t()
     composite_regularizer = CompilERegularizer(args, args.dataset, trains, args.nentity, args.nrelation)
+
+
+# %%
