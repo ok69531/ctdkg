@@ -37,7 +37,7 @@ wandb.run.save()
 wandb.config.update(args)
 
 
-def train(model, device, train_iterator, optimizer, scheduler, args, regularizer = None, Dura_reg = None):
+def train(model, device, train_iterator, optimizer, scheduler, args):
     model.train()
     
     optimizer.zero_grad()
@@ -47,10 +47,7 @@ def train(model, device, train_iterator, optimizer, scheduler, args, regularizer
     negative_sample = negative_sample.to(device)
     subsampling_weight = subsampling_weight.to(device)
     
-    if args.model == 'CompilE':
-        negative_score, _ = model((positive_sample, negative_sample), mode=mode)
-    else:
-        negative_score = model((positive_sample, negative_sample), mode=mode)
+    negative_score = model((positive_sample, negative_sample), mode=mode)
 
     if args.negative_adversarial_sampling:
         #In self-adversarial sampling, we do not apply back-propagation on the sampling weight
@@ -67,12 +64,7 @@ def train(model, device, train_iterator, optimizer, scheduler, args, regularizer
     #     positive_score = model((positive_sample, pos_part), mode=mode)
     # else:
     
-    if args.model == 'CompilE':
-        positive_score, factors = model(positive_sample)
-        reg_loss = regularizer.forward(positive_sample, (model.entity_embedding, model.relation_embedding))
-        reg_loss += Dura_reg(factors)
-    else:
-        positive_score = model(positive_sample)
+    positive_score = model(positive_sample)
     positive_score = F.logsigmoid(positive_score).squeeze(dim = 1)
 
     if args.uni_weight:
@@ -83,8 +75,6 @@ def train(model, device, train_iterator, optimizer, scheduler, args, regularizer
         negative_sample_loss = - (subsampling_weight * negative_score).sum()/subsampling_weight.sum()
 
     loss = (positive_sample_loss + negative_sample_loss)/2
-    if args.model == 'CompilE':
-        loss = loss + reg_loss
     
     if args.regularization != 0.0:
         #Use L3 regularization for ComplEx and DistMult
@@ -199,10 +189,7 @@ def evaluate(model, head_loader, tail_loader, args):
             positive_sample = positive_sample.to(device)
             negative_sample = negative_sample.to(device)
             
-            if args.model == 'CompilE':
-                score = model.compile_score((positive_sample, negative_sample), mode)
-            else:
-                score = model((positive_sample, negative_sample), mode)
+            score = model((positive_sample, negative_sample), mode)
 
             y_pred_pos = score[:, 0]
             y_pred_neg = score[:, 1:]
@@ -396,13 +383,6 @@ def main():
     best_val_mrr = 0
     stopupdate = 0
     
-    if args.model == 'CompilE':
-        trains = torch.stack([train_triples['head'], train_triples['relation'], train_triples['tail']]).t()
-        composite_regularizer = CompilERegularizer(args, args.dataset, trains, args.nentity, args.nrelation)
-        Dura_reg = DURA(0.05)
-    else:
-        composite_regularizer = Dura_reg = None
-    
     if args.init_checkpoint:
         check_points = torch.load(f'{save_path}/{file_name}_epoch{args.init_checkpoint}.pt')
         init_epoch = check_points['epoch'] +1
@@ -413,7 +393,7 @@ def main():
         scheduler.load_state_dict(check_points['scheduler_dict'])
     
     for i in range(1, args.max_step + 1):
-        train_out = train(model, device, train_iterator, optimizer, scheduler, args, composite_regularizer, Dura_reg)
+        train_out = train(model, device, train_iterator, optimizer, scheduler, args)
         
         if i % 100 == 0:
             print(f"=== {i}-th iteration")
