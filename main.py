@@ -17,7 +17,6 @@ from module.model import KGEModel
 from module.set_seed import set_seed
 from module.argument import parse_args
 from module.dataset import LinkPredDataset, TrainDataset, TestDataset, BidirectionalOneShotIterator
-from compile_neighbors import CompilERegularizer, DURA
 
 try:
     args = parse_args()
