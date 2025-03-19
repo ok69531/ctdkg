@@ -126,7 +126,7 @@ class KGEModel(nn.Module):
         '''
         if self.use_description:
             self.entity_embedding = self.entity_mlp(self.biot5_entity_embedding)
-            self.relation_embedding = self.relation_mlp(self.biot5_entity_embedding)
+            self.relation_embedding = self.relation_mlp(self.biot5_relation_embedding)
             
         if mode == 'single':
             batch_size, negative_sample_size = sample.size(0), 1
