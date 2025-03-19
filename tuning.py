@@ -43,7 +43,7 @@ sweep_configuration = {
     }
 }
 
-sweep_id = wandb.sweep(sweep_configuration, project = f'ctdkg-{args.dataset}-text')
+sweep_id = wandb.sweep(sweep_configuration, project = f'ctdkg-{args.dataset}')
 
 def train(model, device, train_iterator, optimizer, scheduler, args):
     model.train()
