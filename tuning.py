@@ -42,7 +42,7 @@ sweep_configuration = {
     }
 }
 
-sweep_id = wandb.sweep(sweep_configuration, project = f'ctdkg-{args.dataset}')
+sweep_id = wandb.sweep(sweep_configuration, project = f'ctdkg-{args.dataset}-text')
 
 def train(model, device, train_iterator, optimizer, scheduler, args):
     model.train()
@@ -346,15 +346,7 @@ def main():
     )
     train_iterator = BidirectionalOneShotIterator(train_dataloader_head, train_dataloader_tail)
     
-    model = KGEModel(
-        model_name=args.model,
-        nentity=nentity,
-        nrelation=nrelation,
-        hidden_dim=args.hidden_dim,
-        gamma=args.gamma,
-        num_entity_embedding=args.num_entity_embedding,
-        num_relation_embedding=args.num_relation_embedding
-    ).to(device)
+    model = KGEModel(args).to(device)
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), 
@@ -436,9 +428,6 @@ def main():
                     'final_test_hit3': test_metrics['hits@3'],
                     'final_test_hit10': test_metrics['hits@10']
                 }
-                # model_params = deepcopy(model.state_dict())
-                # optim_dict = deepcopy(optimizer.state_dict())
-                # scheduler_dict = deepcopy(scheduler.state_dict())
                 stopupdate = 0
                 
             else:
@@ -447,6 +436,7 @@ def main():
                     print(f'early stop at iteration {i}')
                     break
             
+    wandb.log(best_val_result)
     print('')
     for metric in valid_metrics.keys():
         print(f'{metric}: {valid_metrics[metric]:.5f}')

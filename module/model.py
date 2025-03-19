@@ -17,80 +17,102 @@ from module.utils.hyperbolic import mobius_add, expmap0, project, expmap1, logma
 
 
 class KGEModel(nn.Module):
-    def __init__(self, model_name, nentity, nrelation, hidden_dim, gamma,
-                 num_entity_embedding=1, num_relation_embedding=1):
+    def __init__(self, args):
         super(KGEModel, self).__init__()
-        self.model_name = model_name
-        self.nentity = nentity
-        self.nrelation = nrelation
-        self.hidden_dim = hidden_dim
+        
+        self.dataset = args.dataset
+        self.model_name = args.model
+        self.use_description = args.use_description
+        
+        self.nentity = args.nentity
+        self.nrelation = args.nrelation
+        self.hidden_dim = args.hidden_dim
         self.epsilon = 2.0
         
         self.gamma = nn.Parameter(
-            torch.Tensor([gamma]), 
+            torch.Tensor([args.gamma]), 
             requires_grad=False
         )
         
+        self.entity_dim = args.hidden_dim * args.num_entity_embedding
+        self.relation_dim = args.hidden_dim * args.num_relation_embedding
         self.embedding_range = nn.Parameter(
-            torch.Tensor([(self.gamma.item() + self.epsilon) / hidden_dim]), 
+            torch.Tensor([(self.gamma.item() + self.epsilon) / args.hidden_dim]), 
             requires_grad=False
         )
         
-        self.phase_weight = nn.Parameter(torch.Tensor([[0.5 * self.embedding_range.item()]]))
-        self.modulus_weight = nn.Parameter(torch.Tensor([[1.0]]))
-        
-        self.entity_dim = hidden_dim*num_entity_embedding
-        # self.entity_dim = hidden_dim*2 if double_entity_embedding else hidden_dim
-        self.relation_dim = hidden_dim*num_relation_embedding
-        
-        self.entity_embedding = nn.Parameter(torch.zeros(nentity, self.entity_dim))
-        nn.init.uniform_(
-            tensor=self.entity_embedding, 
-            a=-self.embedding_range.item(), 
-            b=self.embedding_range.item()
-        )
-        
-        self.relation_embedding = nn.Parameter(torch.zeros(nrelation, self.relation_dim))
-        nn.init.uniform_(
-            tensor=self.relation_embedding, 
-            a=-self.embedding_range.item(), 
-            b=self.embedding_range.item()
-        )
-        
-        if model_name == 'HAKE':
-            nn.init.ones_(
-                tensor=self.relation_embedding[:, hidden_dim:2 * hidden_dim]
+        if args.use_description:
+            self.load_embedding()
+            
+            self.entity_mlp = nn.Linear(self.biot5_entity_embedding.size(1), self.entity_dim)
+            self.relation_mlp = nn.Linear(self.biot5_relation_embedding.size(1), self.relation_dim)
+            
+            if args.model == 'HAKE':
+                self.phase_weight = nn.Parameter(torch.Tensor([[0.5 * self.embedding_range.item()]]))
+                self.modulus_weight = nn.Parameter(torch.Tensor([[1.0]]))
+            
+        else:
+            self.entity_embedding = nn.Parameter(torch.zeros(args.nentity, self.entity_dim))
+            nn.init.uniform_(
+                tensor=self.entity_embedding, 
+                a=-self.embedding_range.item(), 
+                b=self.embedding_range.item()
             )
-            nn.init.zeros_(
-                tensor=self.relation_embedding[:, 2 * hidden_dim:3 * hidden_dim]
+            
+            self.relation_embedding = nn.Parameter(torch.zeros(args.nrelation, self.relation_dim))
+            nn.init.uniform_(
+                tensor=self.relation_embedding, 
+                a=-self.embedding_range.item(), 
+                b=self.embedding_range.item()
             )
-        elif model_name == 'QuatRE':
-            self.Whr = nn.Parameter(torch.zeros(nrelation, 4*hidden_dim))
-            self.Wtr = nn.Parameter(torch.zeros(nrelation, 4*hidden_dim))
+        
+            if args.model == 'HAKE':
+                nn.init.ones_(
+                    tensor=self.relation_embedding[:, args.hidden_dim:2 * args.hidden_dim]
+                )
+                nn.init.zeros_(
+                    tensor=self.relation_embedding[:, 2 * args.hidden_dim:3 * args.hidden_dim]
+                )
+                self.phase_weight = nn.Parameter(torch.Tensor([[0.5 * self.embedding_range.item()]]))
+                self.modulus_weight = nn.Parameter(torch.Tensor([[1.0]]))
+                
+            if args.model == 'Rotate4D':
+                nn.init.ones_(tensor=self.relation_embedding[:, 3*args.hidden_dim:4*args.hidden_dim])
+        
+        if args.model == 'QuatRE':
+            self.Whr = nn.Parameter(torch.zeros(args.nrelation, 4 * args.hidden_dim))
+            self.Wtr = nn.Parameter(torch.zeros(args.nrelation, 4 * args.hidden_dim))
             nn.init.xavier_uniform_(self.Whr)
             nn.init.xavier_uniform_(self.Wtr)
-        elif model_name == 'Rotate4D':
-            nn.init.ones_(tensor=self.relation_embedding[:, 3*hidden_dim:4*hidden_dim])
         
         #Do not forget to modify this line when you add a new model in the "forward" function
-        if model_name not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE', 'TripleRE', 'QuatRE', 'Rotate4D']:
-            raise ValueError('model %s not supported' % model_name)
+        if args.model not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE', 'TripleRE', 'QuatRE', 'Rotate4D']:
+            raise ValueError('model %s not supported' % args.model)
             
-        if model_name == 'RotatE' and (num_entity_embedding != 2 or num_relation_embedding != 1):
+        if args.model == 'RotatE' and (args.num_entity_embedding != 2 or args.num_relation_embedding != 1):
             raise ValueError('RotatE should use --num_entity_embedding 2')
 
-        if model_name == 'ComplEx' and (num_entity_embedding != 2 or num_relation_embedding != 2):
+        if args.model == 'ComplEx' and (args.num_entity_embedding != 2 or args.num_relation_embedding != 2):
             raise ValueError('ComplEx should use --num_entity_embedding 2 and --num_relation_embedding 2')
         
-        if model_name == 'HAKE' and (num_entity_embedding != 2 or num_relation_embedding != 3):
+        if args.model == 'HAKE' and (args.num_entity_embedding != 2 or args.num_relation_embedding != 3):
             raise ValueError('HAKE should use --num_entity_embedding 2 and --num_relation_embedding 3')
         
-        if model_name == 'TripleRE' and (num_relation_embedding != 3):
+        if args.model == 'TripleRE' and (args.num_relation_embedding != 3):
             raise ValueError('TripleRE should use --num_relation_embedding 3')
         
-        if (model_name == 'QuatRE' or model_name == 'Rotate4D') and (num_entity_embedding != 4 or num_relation_embedding != 4):
+        if (args.model == 'QuatRE' or args.model == 'Rotate4D') and (args.num_entity_embedding != 4 or args.num_relation_embedding != 4):
             raise ValueError('QuatRE or Rotate4D should use --num_entity_embedding 4 and --num_relation_embedding 4')
 
+    def load_embedding(self):
+        if self.dataset == 'cd':
+            self.biot5_entity_embedding = torch.load('dataset/cd/processed/entity_embedding')
+            self.biot5_relation_embedding = torch.load('dataset/cd/processed/relation_embedding')
+        # elif self.dataset == 'cgd':
+        # elif self.dataset == 'cgpd':
+        # elif self.dataset == 'ctd':
+            
+    
     def forward(self, sample, mode='single'):
         '''
         Forward function that calculate the score of a batch of triples.
@@ -101,7 +123,10 @@ class KGEModel(nn.Module):
         Because negative samples and positive samples usually share two elements 
         in their triple ((head, relation) or (relation, tail)).
         '''
-
+        if self.use_description:
+            self.entity_embedding = self.entity_mlp(self.biot5_entity_embedding)
+            self.relation_embedding = self.relation_mlp(self.biot5_entity_embedding)
+            
         if mode == 'single':
             batch_size, negative_sample_size = sample.size(0), 1
             

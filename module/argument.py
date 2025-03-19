@@ -45,4 +45,6 @@ def parse_args(args=None):
     parser.add_argument('--nentity', type=int, default=0, help='DO NOT MANUALLY SET')
     parser.add_argument('--nrelation', type=int, default=0, help='DO NOT MANUALLY SET')
     
+    parser.add_argument('--use_description', type = bool, default = False, help = 'whether using the text description')
+    
     return parser.parse_args(args)

@@ -362,15 +362,7 @@ def main():
     #     ).to(device)
     # else:
     
-    model = KGEModel(
-        model_name=args.model,
-        nentity=nentity,
-        nrelation=nrelation,
-        hidden_dim=args.hidden_dim,
-        gamma=args.gamma,
-        num_entity_embedding=args.num_entity_embedding,
-        num_relation_embedding=args.num_relation_embedding
-    ).to(device)
+    model = KGEModel(args).to(device)
     
     optimizer = optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), 
