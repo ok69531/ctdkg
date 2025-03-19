@@ -112,7 +112,7 @@ class KGEModel(nn.Module):
         # elif self.dataset == 'cgpd':
         # elif self.dataset == 'ctd':
         self.biot5_entity_embedding  = self.biot5_entity_embedding.cuda()
-        self.biot5_relation_embedding  = self.biot5_entity_embedding.cuda()
+        self.biot5_relation_embedding  = self.biot5_relation_embedding.cuda()
     
     def forward(self, sample, mode='single'):
         '''
