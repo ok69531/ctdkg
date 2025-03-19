@@ -38,7 +38,8 @@ sweep_configuration = {
         'lr': {'values': [0.1, 0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001]},
         'gamma': {'values': [1]},
         # 'gamma': {'values': [1, 4, 8, 10, 30, 50]},
-        'model': {'values': [args.model]}
+        'model': {'values': [args.model]},
+        'use text': {'values': [args.use_description]}
     }
 }
 
