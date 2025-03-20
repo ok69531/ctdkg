@@ -167,9 +167,9 @@ class KGEModel(nn.Module):
                 self.tr = torch.index_select(self.Wtr, dim=0, index=tail_part[:, 1]).unsqueeze(1)
             
             if self.use_description:
-                tex_head = torch.index_select(self.text_entity_embedding, dim=0, index=head_part.view(-1)).view(batch_size, negative_sample_size, -1)
-                tex_relation = torch.index_select(self.text_relation_embedding, dim=0, index=tail_part[:, 1]).unsqueeze(1)
-                tex_tail = torch.index_select(self.text_entity_embedding, dim=0, index=tail_part[:, 2]).unsqueeze(1)
+                text_head = torch.index_select(self.text_entity_embedding, dim=0, index=head_part.view(-1)).view(batch_size, negative_sample_size, -1)
+                text_relation = torch.index_select(self.text_relation_embedding, dim=0, index=tail_part[:, 1]).unsqueeze(1)
+                text_tail = torch.index_select(self.text_entity_embedding, dim=0, index=tail_part[:, 2]).unsqueeze(1)
             else:
                 text_head = text_relation = text_tail = None
         
