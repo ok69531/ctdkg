@@ -21,7 +21,7 @@ def load_model(model_name):
     elif model_name == 'chemdfm':
         model_name_or_id = "OpenDFM/ChemDFM-13B-v1.0"
         tokenizer = LlamaTokenizer.from_pretrained(model_name_or_id)
-        model = LlamaForCausalLM.from_pretrained(model_name_or_id, torch_dtype=torch.float16, device_map="cpu")
+        model = LlamaForCausalLM.from_pretrained(model_name_or_id, torch_dtype=torch.float16, device_map="auto")
         
     return tokenizer, model
 # tokenizer, model = load_model('chemdfm')
