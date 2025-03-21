@@ -41,10 +41,17 @@ def chemical_embedding(model_name):
     for i in tqdm(range(len(chem_desc))):
         chem_id = chem_desc.ChemicalID[i]
         input_text = chem_desc.input_text[i]
-        input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
-        with torch.no_grad():
-            text_emb = model.encoder(input_ids)
-            text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        
+        if model_name == 'biot5+':
+            input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
+            with torch.no_grad():
+                text_emb = model.encoder(input_ids)
+                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        elif model_name == 'chemdfm':
+            input_ids = tokenizer(input_text, return_tensors = 'pt')
+            with torch.no_grad():
+                text_emb = model(**input_ids, output_hidden_states = True)
+                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
 
         emb_dict = {
             'input text': input_text,
@@ -70,11 +77,20 @@ def gene_embedding(model_name):
     for i in tqdm(range(len(gene_desc))):
         gene_id = gene_desc.GeneID[i]
         input_text = gene_desc.input_text[i]
-        input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
-        with torch.no_grad():
-            text_emb = model.encoder(input_ids)
-            text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
-
+        
+        if model_name == 'biot5+':
+            input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
+            with torch.no_grad():
+                text_emb = model.encoder(input_ids)
+                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        elif model_name == 'chemdfm':
+            input_ids = tokenizer(input_text, return_tensors = 'pt')
+            with torch.no_grad():
+                text_emb = model(**input_ids, output_hidden_states = True)
+                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+        
+        text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        
         emb_dict = {
             'input text': input_text,
             'text embedding': text_emb
@@ -104,10 +120,19 @@ def disease_embedding(model_name):
     for i in tqdm(range(len(dis_desc))):
         dis_id = dis_desc.DiseaseID[i]
         input_text = dis_desc.input_text[i]
-        input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
-        with torch.no_grad():
-            text_emb = model.encoder(input_ids)
-            text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        
+        if model_name == 'biot5+':
+            input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
+            with torch.no_grad():
+                text_emb = model.encoder(input_ids)
+                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        elif model_name == 'chemdfm':
+            input_ids = tokenizer(input_text, return_tensors = 'pt')
+            with torch.no_grad():
+                text_emb = model(**input_ids, output_hidden_states = True)
+                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+        
+        text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
 
         emb_dict = {
             'input text': input_text,
@@ -133,11 +158,20 @@ def phenotype_embedding(model_name):
     for i in tqdm(range(len(pheno_desc))):
         pheno_id = pheno_desc.PhenotypeID[i]
         input_text = pheno_desc.input_text[i]
-        input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
-        with torch.no_grad():
-            text_emb = model.encoder(input_ids)
-            text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
 
+        if model_name == 'biot5+':
+            input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
+            with torch.no_grad():
+                text_emb = model.encoder(input_ids)
+                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        elif model_name == 'chemdfm':
+            input_ids = tokenizer(input_text, return_tensors = 'pt')
+            with torch.no_grad():
+                text_emb = model(**input_ids, output_hidden_states = True)
+                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+        
+        text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        
         emb_dict = {
             'input text': input_text,
             'text embedding': text_emb
@@ -162,10 +196,17 @@ def pathway_embedding(model_name):
     for i in tqdm(range(len(path_desc))):
         path_id = path_desc.PathwayID[i]
         input_text = path_desc.input_text[i]
-        input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
-        with torch.no_grad():
-            text_emb = model.encoder(input_ids)
-            text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        
+        if model_name == 'biot5+':
+            input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
+            with torch.no_grad():
+                text_emb = model.encoder(input_ids)
+                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        elif model_name == 'chemdfm':
+            input_ids = tokenizer(input_text, return_tensors = 'pt')
+            with torch.no_grad():
+                text_emb = model(**input_ids, output_hidden_states = True)
+                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
 
         emb_dict = {
             'input text': input_text,
@@ -191,10 +232,17 @@ def go_embedding(model_name):
     for i in tqdm(range(len(go_desc))):
         go_id = go_desc.GOTermID[i]
         input_text = go_desc.input_text[i]
-        input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
-        with torch.no_grad():
-            text_emb = model.encoder(input_ids)
-            text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        
+        if model_name == 'biot5+':
+            input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
+            with torch.no_grad():
+                text_emb = model.encoder(input_ids)
+                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        elif model_name == 'chemdfm':
+            input_ids = tokenizer(input_text, return_tensors = 'pt')
+            with torch.no_grad():
+                text_emb = model(**input_ids, output_hidden_states = True)
+                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
 
         emb_dict = {
             'input text': input_text,
@@ -218,10 +266,17 @@ def relation_embedding(model_name):
     rel_emb = {x: None for x in rel_names}
     for i in tqdm(range(len(rels))):
         input_text = rel_names[i]
-        input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
-        with torch.no_grad():
-            text_emb = model.encoder(input_ids)
-            text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        
+        if model_name == 'biot5+':
+            input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
+            with torch.no_grad():
+                text_emb = model.encoder(input_ids)
+                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+        elif model_name == 'chemdfm':
+            input_ids = tokenizer(input_text, return_tensors = 'pt')
+            with torch.no_grad():
+                text_emb = model(**input_ids, output_hidden_states = True)
+                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
 
         emb_dict = {
             'input text': input_text,
@@ -400,23 +455,23 @@ def ctd_embedding_data(model_name):
 
     
 if __name__ == '__main__':
-    chemical_embedding('biot5+')
-    gene_embedding('biot5+')
-    disease_embedding('biot5+')
-    phenotype_embedding('biot5+')
-    pathway_embedding('biot5+')
-    go_embedding('biot5+')
-    relation_embedding('biot5+')
+    # chemical_embedding('biot5+')
+    # gene_embedding('biot5+')
+    # disease_embedding('biot5+')
+    # phenotype_embedding('biot5+')
+    # pathway_embedding('biot5+')
+    # go_embedding('biot5+')
+    # relation_embedding('biot5+')
     
-    # chemical_embedding('chemdfm')
-    # gene_embedding('chemdfm')
-    # disease_embedding('chemdfm')
-    # phenotype_embedding('chemdfm')
-    # pathway_embedding('chemdfm')
-    # go_embedding('chemdfm')
-    # relation_embedding('chemdfm')
+    relation_embedding('chemdfm')
+    disease_embedding('chemdfm')
+    chemical_embedding('chemdfm')
+    phenotype_embedding('chemdfm')
+    pathway_embedding('chemdfm')
+    go_embedding('chemdfm')
+    gene_embedding('chemdfm')
     
-    cd_embedding_data('biot5+')
-    cgd_embedding_data('biot5+')
-    cgpd_embedding_data('biot5+')
-    ctd_embedding_data('biot5+')
+    # cd_embedding_data('biot5+')
+    # cgd_embedding_data('biot5+')
+    # cgpd_embedding_data('biot5+')
+    # ctd_embedding_data('biot5+')
