@@ -89,8 +89,6 @@ def gene_embedding(model_name):
                 text_emb = model(**input_ids, output_hidden_states = True)
                 text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
         
-        text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
-        
         emb_dict = {
             'input text': input_text,
             'text embedding': text_emb
@@ -132,8 +130,6 @@ def disease_embedding(model_name):
                 text_emb = model(**input_ids, output_hidden_states = True)
                 text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
         
-        text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
-
         emb_dict = {
             'input text': input_text,
             'text embedding': text_emb
@@ -169,8 +165,6 @@ def phenotype_embedding(model_name):
             with torch.no_grad():
                 text_emb = model(**input_ids, output_hidden_states = True)
                 text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
-        
-        text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
         
         emb_dict = {
             'input text': input_text,
