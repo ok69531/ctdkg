@@ -30,8 +30,10 @@ print(f'cuda is available: {torch.cuda.is_available()}')
 
 wandb.login(key = open('module/wandb_key.txt', 'r').readline())
 wandb.init(project = f'ctdkg', entity = 'soyoung')
-wandb.run.name = f'{args.dataset}-{args.model}{args.seed}'
-# wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}'
+if args.use_description:
+    wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-text'
+else:
+    wandb.run.name = f'{args.dataset}-{args.model}{args.seed}'
 wandb.run.save()
 wandb.config.update(args)
 
@@ -487,11 +489,18 @@ def main():
                     'optimizer_state_dict': optim_dict,
                     'scheduler_dict': scheduler_dict}
     
-    file_name = f'seed{args.seed}.pt'
+    if args.use_description:
+        file_name = f'text_seed{args.seed}.pt'
+    else:
+        file_name = f'seed{args.seed}.pt'
     # file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
     torch.save(check_points, os.path.join(save_path, file_name))
 
-    log_save_path = f'best_val_log/{args.dataset}'
+    if args.use_description:
+        log_save_path = f'best_val_log/{args.dataset}_text'
+    else:
+        log_save_path = f'best_val_log/{args.dataset}'
+        
     if os.path.isdir(log_save_path):
         pass
     else:
