@@ -39,7 +39,7 @@ sweep_configuration = {
         'gamma': {'values': [1]},
         # 'gamma': {'values': [1, 4, 8, 10, 30, 50]},
         'model': {'values': [args.model]},
-        'use text': {'values': [args.use_description]}
+        'embedding': {'values': [args.embedding_type]}
     }
 }
 
