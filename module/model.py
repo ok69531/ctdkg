@@ -43,7 +43,7 @@ class KGEModel(nn.Module):
             requires_grad=False
         )
 
-        if args.embedding_type == 'vanilla' or args.embedding_type == 'concat':
+        if (args.embedding_type == 'vanilla') or (args.embedding_type == 'concat'):
             self.entity_embedding = nn.Parameter(torch.zeros(args.nentity, self.entity_dim))
             nn.init.uniform_(
                 tensor=self.entity_embedding, 

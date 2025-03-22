@@ -37,8 +37,7 @@ else:
 wandb.run.save()
 wandb.config.update(args)
 
-args.num_workers=0
-args.embedding_type='text'
+
 def train(model, device, train_iterator, optimizer, scheduler, args):
     model.train()
     
