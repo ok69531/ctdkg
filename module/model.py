@@ -85,7 +85,7 @@ class KGEModel(nn.Module):
                 nn.init.xavier_uniform_(self.Whr)
                 nn.init.xavier_uniform_(self.Wtr)
         
-        if args.embedding_type == 'text':
+        if (args.embedding_type == 'text') or (args.embedding_type == 'concat'):
             self.load_embedding()
             
             self.entity_mlp = nn.Linear(self.entity_desc_embedding.size(1), self.entity_dim)
