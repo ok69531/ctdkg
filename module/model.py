@@ -22,7 +22,9 @@ class KGEModel(nn.Module):
         
         self.dataset = args.dataset
         self.model_name = args.model
-        self.use_description = args.use_description
+        
+        self.llm_model = args.llm_model
+        self.embedding_type = args.embedding_type
         
         self.nentity = args.nentity
         self.nrelation = args.nrelation
@@ -40,36 +42,39 @@ class KGEModel(nn.Module):
             torch.Tensor([(self.gamma.item() + self.epsilon) / args.hidden_dim]), 
             requires_grad=False
         )
+
+        if args.embedding_type == 'vanilla' or args.embedding_type == 'concat':
+            self.entity_embedding = nn.Parameter(torch.zeros(args.nentity, self.entity_dim))
+            nn.init.uniform_(
+                tensor=self.entity_embedding, 
+                a=-self.embedding_range.item(), 
+                b=self.embedding_range.item()
+            )
             
-        self.entity_embedding = nn.Parameter(torch.zeros(args.nentity, self.entity_dim))
-        nn.init.uniform_(
-            tensor=self.entity_embedding, 
-            a=-self.embedding_range.item(), 
-            b=self.embedding_range.item()
-        )
+            self.relation_embedding = nn.Parameter(torch.zeros(args.nrelation, self.relation_dim))
+            nn.init.uniform_(
+                tensor=self.relation_embedding, 
+                a=-self.embedding_range.item(), 
+                b=self.embedding_range.item()
+            )
         
-        self.relation_embedding = nn.Parameter(torch.zeros(args.nrelation, self.relation_dim))
-        nn.init.uniform_(
-            tensor=self.relation_embedding, 
-            a=-self.embedding_range.item(), 
-            b=self.embedding_range.item()
-        )
-    
+            if args.model == 'HAKE':
+                nn.init.ones_(
+                    tensor=self.relation_embedding[:, args.hidden_dim:2 * args.hidden_dim]
+                )
+                nn.init.zeros_(
+                    tensor=self.relation_embedding[:, 2 * args.hidden_dim:3 * args.hidden_dim]
+                )
+                
+            if args.model == 'Rotate4D':
+                nn.init.ones_(tensor=self.relation_embedding[:, 3*args.hidden_dim:4*args.hidden_dim])
+        
         if args.model == 'HAKE':
-            nn.init.ones_(
-                tensor=self.relation_embedding[:, args.hidden_dim:2 * args.hidden_dim]
-            )
-            nn.init.zeros_(
-                tensor=self.relation_embedding[:, 2 * args.hidden_dim:3 * args.hidden_dim]
-            )
             self.phase_weight = nn.Parameter(torch.Tensor([[0.5 * self.embedding_range.item()]]))
             self.modulus_weight = nn.Parameter(torch.Tensor([[1.0]]))
-            
-        if args.model == 'Rotate4D':
-            nn.init.ones_(tensor=self.relation_embedding[:, 3*args.hidden_dim:4*args.hidden_dim])
         
         if args.model == 'QuatRE':
-            if args.use_description:
+            if args.embedding_type == 'concat':
                 self.Whr = nn.Parameter(torch.zeros(args.nrelation, 4 * (args.hidden_dim * 2)))
                 self.Wtr = nn.Parameter(torch.zeros(args.nrelation, 4 * (args.hidden_dim * 2)))
                 nn.init.xavier_uniform_(self.Whr)
@@ -80,11 +85,11 @@ class KGEModel(nn.Module):
                 nn.init.xavier_uniform_(self.Whr)
                 nn.init.xavier_uniform_(self.Wtr)
         
-        if args.use_description:
+        if args.embedding_type == 'text':
             self.load_embedding()
             
-            self.entity_mlp = nn.Linear(self.biot5_entity_embedding.size(1), self.entity_dim)
-            self.relation_mlp = nn.Linear(self.biot5_relation_embedding.size(1), self.relation_dim)
+            self.entity_mlp = nn.Linear(self.entity_desc_embedding.size(1), self.entity_dim)
+            self.relation_mlp = nn.Linear(self.rel_desc_embedding.size(1), self.relation_dim)
         
         #Do not forget to modify this line when you add a new model in the "forward" function
         if args.model not in ['TransE', 'DistMult', 'ComplEx', 'RotatE', 'HAKE', 'TripleRE', 'QuatRE', 'Rotate4D']:
@@ -107,20 +112,20 @@ class KGEModel(nn.Module):
 
     def load_embedding(self):
         if self.dataset == 'cd':
-            self.biot5_entity_embedding = torch.load('dataset/cd/processed/biot5+_entity_embedding')
-            self.biot5_relation_embedding = torch.load('dataset/cd/processed/biot5+_relation_embedding')
+            self.entity_desc_embedding = torch.load(f'dataset/cd/processed/{self.llm_model}_entity_embedding')
+            self.rel_desc_embedding = torch.load(f'dataset/cd/processed/{self.llm_model}_relation_embedding')
         elif self.dataset == 'cgd':
-            self.biot5_entity_embedding = torch.load('dataset/cgd/processed/biot5+_entity_embedding')
-            self.biot5_relation_embedding = torch.load('dataset/cgd/processed/biot5+_relation_embedding')
+            self.entity_desc_embedding = torch.load(f'dataset/cgd/processed/{self.llm_model}_entity_embedding')
+            self.rel_desc_embedding = torch.load(f'dataset/cgd/processed/{self.llm_model}_relation_embedding')
         elif self.dataset == 'cgpd':
-            self.biot5_entity_embedding = torch.load('dataset/cgpd/processed/biot5+_entity_embedding')
-            self.biot5_relation_embedding = torch.load('dataset/cgpd/processed/biot5+_relation_embedding')
+            self.entity_desc_embedding = torch.load(f'dataset/cgpd/processed/{self.llm_model}_entity_embedding')
+            self.rel_desc_embedding = torch.load(f'dataset/cgpd/processed/{self.llm_model}_relation_embedding')
         elif self.dataset == 'ctd':
-            self.biot5_entity_embedding = torch.load('dataset/ctd/processed/biot5+_entity_embedding')
-            self.biot5_relation_embedding = torch.load('dataset/ctd/processed/biot5+_relation_embedding')
+            self.entity_desc_embedding = torch.load(f'dataset/ctd/processed/{self.llm_model}_entity_embedding')
+            self.rel_desc_embedding = torch.load(f'dataset/ctd/processed/{self.llm_model}_relation_embedding')
         
-        self.biot5_entity_embedding  = self.biot5_entity_embedding.cuda()
-        self.biot5_relation_embedding  = self.biot5_relation_embedding.cuda()
+        self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32).cuda()
+        self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32).cuda()
     
     def forward(self, sample, mode='single'):
         '''
@@ -132,9 +137,12 @@ class KGEModel(nn.Module):
         Because negative samples and positive samples usually share two elements 
         in their triple ((head, relation) or (relation, tail)).
         '''
-        if self.use_description:
-            self.text_entity_embedding = self.entity_mlp(self.biot5_entity_embedding)
-            self.text_relation_embedding = self.relation_mlp(self.biot5_relation_embedding)
+        if self.embedding_type == 'text':
+            self.entity_embedding = self.entity_mlp(self.entity_desc_embedding)
+            self.relation_embedding = self.relation_mlp(self.rel_desc_embedding)
+        elif self.embedding_type == 'concat':
+            self.text_entity_embedding = self.entity_mlp(self.entity_desc_embedding)
+            self.text_relation_embedding = self.relation_mlp(self.rel_desc_embedding)
             
         if mode == 'single':
             batch_size, negative_sample_size = sample.size(0), 1
@@ -147,7 +155,7 @@ class KGEModel(nn.Module):
                 self.hr = torch.index_select(self.Whr, dim=0, index=sample[:,1]).unsqueeze(1)
                 self.tr = torch.index_select(self.Wtr, dim=0, index=sample[:,1]).unsqueeze(1)
             
-            if self.use_description:
+            if self.embedding_type == 'concat':
                 text_head = torch.index_select(self.text_entity_embedding, dim=0, index=sample[:,0]).unsqueeze(1)
                 text_relation = torch.index_select(self.text_relation_embedding, dim=0, index=sample[:,1]).unsqueeze(1)
                 text_tail = torch.index_select(self.text_entity_embedding, dim=0, index=sample[:,2]).unsqueeze(1)
@@ -166,7 +174,7 @@ class KGEModel(nn.Module):
                 self.hr = torch.index_select(self.Whr, dim=0, index=tail_part[:, 1]).unsqueeze(1)
                 self.tr = torch.index_select(self.Wtr, dim=0, index=tail_part[:, 1]).unsqueeze(1)
             
-            if self.use_description:
+            if self.embedding_type == 'concat':
                 text_head = torch.index_select(self.text_entity_embedding, dim=0, index=head_part.view(-1)).view(batch_size, negative_sample_size, -1)
                 text_relation = torch.index_select(self.text_relation_embedding, dim=0, index=tail_part[:, 1]).unsqueeze(1)
                 text_tail = torch.index_select(self.text_entity_embedding, dim=0, index=tail_part[:, 2]).unsqueeze(1)
@@ -185,7 +193,7 @@ class KGEModel(nn.Module):
                 self.hr = torch.index_select(self.Whr, dim=0, index=head_part[:, 1]).unsqueeze(1)
                 self.tr = torch.index_select(self.Wtr, dim=0, index=head_part[:, 1]).unsqueeze(1)
             
-            if self.use_description:
+            if self.embedding_type == 'concat':
                 text_head = torch.index_select(self.text_entity_embedding, dim=0, index=head_part[:, 0]).unsqueeze(1)
                 text_relation = torch.index_select(self.text_relation_embedding,dim=0,index=head_part[:, 1]).unsqueeze(1)
                 text_tail = torch.index_select(self.text_entity_embedding, dim=0, index=tail_part.view(-1)).view(batch_size, negative_sample_size, -1)
@@ -214,7 +222,7 @@ class KGEModel(nn.Module):
         return score
     
     def TransE(self, head, relation, tail, mode, text_head, text_relation, text_tail):
-        if self.use_description:
+        if self.embedding_type == 'concat':
             head = torch.cat([head, text_head], dim = 2)
             relation = torch.cat([relation, text_relation], dim = 2)
             tail = torch.cat([tail, text_tail], dim = 2)
@@ -228,7 +236,7 @@ class KGEModel(nn.Module):
         return score
 
     def DistMult(self, head, relation, tail, mode, text_head, text_relation, text_tail):
-        if self.use_description:
+        if self.embedding_type == 'concat':
             head = torch.cat([head, text_head], dim = 2)
             relation = torch.cat([relation, text_relation], dim = 2)
             tail = torch.cat([tail, text_tail], dim = 2)
@@ -246,7 +254,7 @@ class KGEModel(nn.Module):
         re_relation, im_relation = torch.chunk(relation, 2, dim=2)
         re_tail, im_tail = torch.chunk(tail, 2, dim=2)
         
-        if self.use_description:
+        if self.embedding_type == 'concat':
             re_text_head, im_text_head = torch.chunk(text_head, 2, dim=2)
             re_text_relation, im_text_relation = torch.chunk(text_relation, 2, dim=2)
             re_text_tail, im_text_tail = torch.chunk(text_tail, 2, dim=2)
@@ -276,7 +284,7 @@ class KGEModel(nn.Module):
         re_head, im_head = torch.chunk(head, 2, dim=2)
         re_tail, im_tail = torch.chunk(tail, 2, dim=2)
         
-        if self.use_description:
+        if self.embedding_type == 'concat':
             re_text_head, im_text_head = torch.chunk(text_head, 2, dim=2)
             re_text_tail, im_text_tail = torch.chunk(text_tail, 2, dim=2)
             
@@ -293,7 +301,7 @@ class KGEModel(nn.Module):
         re_relation = torch.cos(phase_relation)
         im_relation = torch.sin(phase_relation)
 
-        if mode == 'head-batch':
+        if mode == 'head-batch' == 'concat':
             re_score = re_relation * re_tail + im_relation * im_tail
             im_score = re_relation * im_tail - im_relation * re_tail
             re_score = re_score - re_head
@@ -317,7 +325,7 @@ class KGEModel(nn.Module):
         phase_relation, mod_relation, bias_relation = torch.chunk(relation, 3, dim=2)
         phase_tail, mod_tail = torch.chunk(tail, 2, dim=2)
         
-        if self.use_description:
+        if self.embedding_type == 'concat':
             phase_text_head, mod_text_head = torch.chunk(text_head, 2, dim=2)
             phase_text_relation, mod_text_relation, bias_text_relation = torch.chunk(text_relation, 3, dim=2)
             phase_text_tail, mod_text_tail = torch.chunk(text_tail, 2, dim=2)
@@ -354,7 +362,7 @@ class KGEModel(nn.Module):
     def TripleRE(self, head, relation, tail, mode, text_head, text_relation, text_tail):
         re_head, re_mid, re_tail = torch.chunk(relation, 3, dim = 2)
         
-        if self.use_description:
+        if self.embedding_type == 'concat':
             re_text_head, re_text_mid, re_text_tail = torch.chunk(text_relation, 3, dim = 2)
             
             head = torch.cat([head, text_head], dim = 2)
@@ -372,7 +380,7 @@ class KGEModel(nn.Module):
         return score
     
     def QuatRE(self, head, relation, tail, mode, text_head, text_relation, text_tail):
-        if self.use_description:
+        if self.embedding_type == 'concat':
             head = torch.cat([head, text_head], dim = 2)
             relation = torch.cat([relation, text_relation], dim = 2)
             tail = torch.cat([tail, text_tail], dim = 2)
@@ -387,7 +395,7 @@ class KGEModel(nn.Module):
     def Rotate4D(self, head, relation, tail, mode, text_head, text_relation, text_tail):
         pi = 3.14159265358979323846
         
-        if self.use_description:
+        if self.embedding_type == 'concat':
             head = torch.cat([head, text_head], dim = 2)
             relation = torch.cat([relation, text_relation], dim = 2)
             tail = torch.cat([tail, text_tail], dim = 2)
@@ -492,8 +500,8 @@ class KGEModel(nn.Module):
 #         if args.use_description:
 #             self.load_embedding()
             
-#             self.entity_mlp = nn.Linear(self.biot5_entity_embedding.size(1), self.entity_dim)
-#             self.relation_mlp = nn.Linear(self.biot5_relation_embedding.size(1), self.relation_dim)
+#             self.entity_mlp = nn.Linear(self.entity_desc_embedding.size(1), self.entity_dim)
+#             self.relation_mlp = nn.Linear(self.rel_desc_embedding.size(1), self.relation_dim)
             
 #             if args.model == 'HAKE':
 #                 self.phase_weight = nn.Parameter(torch.Tensor([[0.5 * self.embedding_range.item()]]))
@@ -554,13 +562,13 @@ class KGEModel(nn.Module):
 
 #     def load_embedding(self):
 #         if self.dataset == 'cd':
-#             self.biot5_entity_embedding = torch.load('dataset/cd/processed/entity_embedding')
-#             self.biot5_relation_embedding = torch.load('dataset/cd/processed/relation_embedding')
+#             self.entity_desc_embedding = torch.load('dataset/cd/processed/entity_embedding')
+#             self.rel_desc_embedding = torch.load('dataset/cd/processed/relation_embedding')
 #         # elif self.dataset == 'cgd':
 #         # elif self.dataset == 'cgpd':
 #         # elif self.dataset == 'ctd':
-#         self.biot5_entity_embedding  = self.biot5_entity_embedding.cuda()
-#         self.biot5_relation_embedding  = self.biot5_relation_embedding.cuda()
+#         self.entity_desc_embedding  = self.entity_desc_embedding.cuda()
+#         self.rel_desc_embedding  = self.rel_desc_embedding.cuda()
     
 #     def forward(self, sample, mode='single'):
 #         '''
@@ -573,8 +581,8 @@ class KGEModel(nn.Module):
 #         in their triple ((head, relation) or (relation, tail)).
 #         '''
 #         if self.use_description:
-#             self.entity_embedding = self.entity_mlp(self.biot5_entity_embedding)
-#             self.relation_embedding = self.relation_mlp(self.biot5_relation_embedding)
+#             self.entity_embedding = self.entity_mlp(self.entity_desc_embedding)
+#             self.relation_embedding = self.relation_mlp(self.rel_desc_embedding)
             
 #         if mode == 'single':
 #             batch_size, negative_sample_size = sample.size(0), 1

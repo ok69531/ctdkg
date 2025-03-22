@@ -45,6 +45,10 @@ def parse_args(args=None):
     parser.add_argument('--nentity', type=int, default=0, help='DO NOT MANUALLY SET')
     parser.add_argument('--nrelation', type=int, default=0, help='DO NOT MANUALLY SET')
     
-    parser.add_argument('--use_description', type = bool, default = False, help = 'whether using the text description')
+    #
+    parser.add_argument('--embedding_type', type = str, default = 'vanilla', help = 'vanilla, text, or concat')
+    # parser.add_argument('--use_description', type = bool, default = False, help = 'whether using the text description')
+    # parser.add_argument('--concat', type = bool, default = False, help = 'whether concat the text embedding and vanilla embedding')
+    parser.add_argument('--llm_model', type = str, default = 'chemdfm', help = 'biot5+ or chemdfm')
     
     return parser.parse_args(args)
