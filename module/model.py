@@ -60,10 +60,10 @@ class KGEModel(nn.Module):
         
             if args.model == 'HAKE':
                 nn.init.ones_(
-                    tensor=self.relation_embedding[:, args.hidden_dim:2 * args.hidden_dim]
+                    tensor=self.relation_embedding[:, args.hidden_dim : 2*args.hidden_dim]
                 )
                 nn.init.zeros_(
-                    tensor=self.relation_embedding[:, 2 * args.hidden_dim:3 * args.hidden_dim]
+                    tensor=self.relation_embedding[:, 2*args.hidden_dim : 3*args.hidden_dim]
                 )
                 
             if args.model == 'Rotate4D':
@@ -334,7 +334,7 @@ class KGEModel(nn.Module):
             mod_head = torch.cat([mod_head, mod_text_head], dim = 2)
             phase_relation = torch.cat([phase_relation, phase_text_relation], dim = 2)
             mod_relation = torch.cat([mod_relation, mod_text_relation], dim = 2)
-            bias_relation = torch.cat([mod_relation, bias_text_relation], dim = 2)
+            bias_relation = torch.cat([bias_relation, bias_text_relation], dim = 2)
             phase_tail = torch.cat([phase_tail, phase_text_tail], dim = 2)
             mod_tail = torch.cat([mod_tail, mod_text_tail], dim = 2)
 
@@ -368,7 +368,7 @@ class KGEModel(nn.Module):
             head = torch.cat([head, text_head], dim = 2)
             re_head = torch.cat([re_head, re_text_head], dim = 2)
             re_mid = torch.cat([re_mid, re_text_mid], dim = 2)
-            re_tail = torch.cat([re_mid, re_text_tail], dim = 2)
+            re_tail = torch.cat([re_tail, re_text_tail], dim = 2)
             tail = torch.cat([tail, text_tail], dim = 2)
         
         head = F.normalize(head, 2, -1)
@@ -379,30 +379,24 @@ class KGEModel(nn.Module):
         
         return score
     
-    def QuatRE(self, head, relation, tail, mode, text_head, text_relation, text_tail):
-        if self.embedding_type == 'concat':
-            head = torch.cat([head, text_head], dim = 2)
-            relation = torch.cat([relation, text_relation], dim = 2)
-            tail = torch.cat([tail, text_tail], dim = 2)
-        
-        h_r = self.vec_vec_wise_multiplication(head, self.hr)
-        t_r = self.vec_vec_wise_multiplication(tail, self.tr)
-        hrr = self.vec_vec_wise_multiplication(h_r, relation)
-        score = hrr * t_r
-        
-        return score.sum(dim = 2)
-    
     def Rotate4D(self, head, relation, tail, mode, text_head, text_relation, text_tail):
         pi = 3.14159265358979323846
-        
-        if self.embedding_type == 'concat':
-            head = torch.cat([head, text_head], dim = 2)
-            relation = torch.cat([relation, text_relation], dim = 2)
-            tail = torch.cat([tail, text_tail], dim = 2)
         
         u_h, x_h, y_h, z_h = torch.chunk(head, 4, dim = 2)
         alpha_1, alpha_2, alpha_3, bias = torch.chunk(relation, 4, dim = 2)
         u_t, x_t, y_t, z_t = torch.chunk(tail, 4, dim = 2)
+        
+        if self.embedding_type == 'concat':
+            text_u_h, text_x_h, text_y_h, text_z_h = torch.chunk(text_head, 4, dim = 2)
+            text_alpha_1, text_alpha_2, text_alpha_3, text_bias = torch.chunk(text_relation, 4, dim = 2)
+            text_u_t, text_x_t, text_y_t, text_z_t = torch.chunk(text_tail, 4, dim = 2)
+            
+            u_h, x_h = torch.cat([u_h, text_u_h], dim = 2), torch.cat([x_h, text_x_h], dim = 2)
+            y_h, z_h = torch.cat([y_h, text_y_h], dim = 2), torch.cat([z_h, text_z_h], dim = 2)
+            alpha_1, alpha_2 = torch.cat([alpha_1, text_alpha_1], dim = 2), torch.cat([alpha_2, text_alpha_2], dim = 2)
+            alpha_3, bias = torch.cat([alpha_3, text_alpha_3], dim = 2), torch.cat([bias, text_bias], dim = 2)
+            u_t, x_t = torch.cat([u_t, text_u_t], dim = 2), torch.cat([x_t, text_x_t], dim = 2)
+            y_t, z_t = torch.cat([y_t, text_y_t], dim = 2), torch.cat([z_t, text_z_t], dim = 2)
         
         bias = torch.abs(bias)
         
@@ -434,6 +428,21 @@ class KGEModel(nn.Module):
         
         return score
     
+    def QuatRE(self, head, relation, tail, mode, text_head, text_relation, text_tail):
+        
+        if self.embedding_type == 'concat':
+            relation = torch.cat([relation, text_relation], dim = 2)
+            h_r = self.concat_vec_vec_wise_multiplication(head, text_head, self.hr)
+            t_r = self.concat_vec_vec_wise_multiplication(tail, text_tail, self.tr)
+            hrr = self.vec_vec_wise_multiplication(h_r, relation)
+        else:
+            h_r = self.vec_vec_wise_multiplication(head, self.hr)
+            t_r = self.vec_vec_wise_multiplication(tail, self.tr)
+            hrr = self.vec_vec_wise_multiplication(h_r, relation)
+        score = hrr * t_r
+        
+        return score.sum(dim = 2)
+    
     def normalization(self, quaternion, split_dim=2):  # vectorized quaternion bs x 4dim
         size = quaternion.size(split_dim) // 4
         quaternion = quaternion.reshape(-1, 4, size)  # bs x 4 x dim
@@ -463,6 +472,21 @@ class KGEModel(nn.Module):
     def vec_vec_wise_multiplication(self, q, p):  # vector * vector
         normalized_p = self.normalization(p)  # bs x 4dim
         q_r, q_i, q_j, q_k = self.make_wise_quaternion(q)  # bs x 4dim
+
+        qp_r = self.get_quaternion_wise_mul(q_r * normalized_p)  # qrpr−qipi−qjpj−qkpk
+        qp_i = self.get_quaternion_wise_mul(q_i * normalized_p)  # qipr+qrpi−qkpj+qjpk
+        qp_j = self.get_quaternion_wise_mul(q_j * normalized_p)  # qjpr+qkpi+qrpj−qipk
+        qp_k = self.get_quaternion_wise_mul(q_k * normalized_p)  # qkpr−qjpi+qipj+qrpk
+
+        return torch.cat([qp_r, qp_i, qp_j, qp_k], dim=2)
+    
+    def concat_vec_vec_wise_multiplication(self, q, text_q, p):  # vector * vector
+        normalized_p = self.normalization(p)  # bs x 4dim
+        q_r, q_i, q_j, q_k = self.make_wise_quaternion(q)  # bs x 4dim
+        text_q_r, text_q_i, text_q_j, text_q_k = self.make_wise_quaternion(text_q)  # bs x 4dim
+
+        q_r, q_i = torch.cat([q_r, text_q_r], dim = 2), torch.cat([q_i, text_q_i], dim = 2)
+        q_j, q_k = torch.cat([q_j, text_q_j], dim = 2), torch.cat([q_k, text_q_k], dim = 2)
 
         qp_r = self.get_quaternion_wise_mul(q_r * normalized_p)  # qrpr−qipi−qjpj−qkpk
         qp_i = self.get_quaternion_wise_mul(q_i * normalized_p)  # qipr+qrpi−qkpj+qjpk
