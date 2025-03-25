@@ -1,6 +1,7 @@
 import os
 import logging
 import requests
+import zipfile
 import itertools
 
 import torch
@@ -19,7 +20,7 @@ class LinkPredDataset(object):
         self.name = name
         self.root = os.path.join(root, self.name)
         
-        self.avail_data = ['cd', 'cg-v1', 'cg-v2', 'gd', 'cgd', 'cgpd', 'ctd']
+        self.avail_data = ['cd', 'cgd', 'cgpd', 'ctd']
         if self.name not in self.avail_data:
             err_msg = f'Invalid dataset name: {self.name}\n'
             err_msg += 'Available datasets are as follows:\n'
@@ -42,49 +43,40 @@ class LinkPredDataset(object):
             
             # download full graph
             logging.info(f'>>> Downloading {self.name.upper()} graph ...')
-            if (self.name == 'cg-v1') or (self.name == 'cg-v2'):
-                ver = self.name.split('-')[1]
-                data_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{self.name}.pt?download=true'
-            else:
-                data_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{self.name}.pt?download=true'
+            data_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/processed.zip?download=true'
+            # data_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{self.name}.pt?download=true'
             response = requests.get(data_url)
             
-            with open(pre_processed_file_path, 'wb') as f:
+            zip_file_path = os.path.join(processed_dir, 'processed.zip')
+            with open(zip_file_path, 'wb') as f:
                 f.write(response.content)
-            logging.info(f'    {self.name.upper()} graph is downloaded.')
+            
+            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                zip_ref.extractall(processed_dir)
+            logging.info(f'{self.name.upper()} graph is downloaded.')
+            
+            os.remove(zip_file_path)
             
             # download train/validation/test data
             logging.info(f'>>> Downloading splitted {self.name.upper()} graph ...')
             split_types = ['train', 'valid', 'test']
             for split_type in split_types:
-                if (self.name == 'cg-v1') or (self.name == 'cg-v2'):
-                    split_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{split_type}_{self.name}.pt?download=true'
-                else:
-                    split_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{split_type}_{self.name}.pt?download=true'
+                split_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{split_type}_{self.name}.zip?download=true'
                 response = requests.get(split_url)
                 
-                with open(f'{self.root}/{split_type}_{self.name}.pt', 'wb') as f:
+                split_zip_file_path = f'{self.root}/{split_type}_{self.name}.zip'
+                with open(split_zip_file_path, 'wb') as f:
                     f.write(response.content)
-            logging.info(f'    Training/Validation/Test graphs were downloaded.')
-            
-            # download mapping of entyties and relations
-            logging.info(f'>>> Downloading the mapping of entities and relations ...')
-            map_types = ['rel_type', 'chem', 'gene', 'dis', 'pheno', 'path', 'go']
-            for map_type in map_types:
-                if (self.name == 'cg-v1') or (self.name == 'cg-v2'):
-                    map_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/cg/{ver}/{map_type}_map?download=true'
-                else:
-                    map_url = f'https://huggingface.co/datasets/soyoungc/CTDKG/resolve/main/{self.name}/{map_type}_map?download=true'
-                response = requests.get(map_url)
                 
-                if response.status_code == 200:
-                    with open(os.path.join(processed_dir, map_type+'_map'), 'wb') as f:
-                        f.write(response.content)
-            logging.info(f'    Mappings were downloaded.')
+                with zipfile.ZipFile(split_zip_file_path, 'r') as zip_ref:
+                    zip_ref.extractall(self.root)
+                
+                logging.info(f'{split_type.title()} data was downloaded.')
+                os.remove(split_zip_file_path)
+            
             logging.info(f'>>> All elements were downloaded.')
             
             self.graph = torch.load(pre_processed_file_path)
-
     
     def get_edge_split(self):
         train_data = torch.load(os.path.join(self.root, 'train_'+self.name+'.pt'))

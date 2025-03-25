@@ -29,7 +29,7 @@ def load_model(model_name):
 # a = model(**input_ids, output_hidden_state = True)
 
 
-def chemical_embedding(model_name):
+def chemical_embedding(model_name, pooling = 'sum'):
     tokenizer, model = load_model(model_name)
     model.eval()
     
@@ -46,12 +46,18 @@ def chemical_embedding(model_name):
             input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
             with torch.no_grad():
                 text_emb = model.encoder(input_ids)
-                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                if pooling == 'sum':
+                    text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                elif pooling == 'mean':
+                    text_emb = text_emb.last_hidden_state.mean(1).squeeze(0)
         elif model_name == 'chemdfm':
             input_ids = tokenizer(input_text, return_tensors = 'pt')
             with torch.no_grad():
                 text_emb = model(**input_ids, output_hidden_states = True)
-                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                if pooling == 'sum':
+                    text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                elif pooling == 'mean':
+                    text_emb = text_emb.hidden_states[-1].mean(1).squeeze(0).cpu()
 
         emb_dict = {
             'input text': input_text,
@@ -62,10 +68,10 @@ def chemical_embedding(model_name):
     emb_none = sum(x is None for x in chem_emb.values())
     print(f'Number of failed embedding: {emb_none}')
     
-    torch.save(chem_emb, f'processed/description_embedding/{model_name}_chemical_embedding')
+    torch.save(chem_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_chemical_embedding')
 
 
-def gene_embedding(model_name):
+def gene_embedding(model_name, pooling = 'sum'):
     tokenizer, model = load_model(model_name)
     model.eval()
     
@@ -82,12 +88,18 @@ def gene_embedding(model_name):
             input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
             with torch.no_grad():
                 text_emb = model.encoder(input_ids)
-                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                if pooling == 'sum':
+                    text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                elif pooling == 'mean':
+                    text_emb = text_emb.last_hidden_state.mean(1).squeeze(0)
         elif model_name == 'chemdfm':
             input_ids = tokenizer(input_text, return_tensors = 'pt')
             with torch.no_grad():
                 text_emb = model(**input_ids, output_hidden_states = True)
-                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                if pooling == 'sum':
+                    text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                elif pooling == 'mean':
+                    text_emb = text_emb.hidden_states[-1].mean(1).squeeze(0).cpu()
         
         emb_dict = {
             'input text': input_text,
@@ -96,17 +108,17 @@ def gene_embedding(model_name):
         gene_emb[gene_id] = emb_dict
         
         if i % 10000 == 0:
-            torch.save(gene_emb, f'processed/description_embedding/{model_name}_gene_embedding')
+            torch.save(gene_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_gene_embedding')
             print(f'saved at {i}-th gene')
     
     emb_none = sum(x is None for x in gene_emb.values())
     print('')
     print(f'Number of failed embedding: {emb_none}')
     
-    torch.save(gene_emb, f'processed/description_embedding/{model_name}_gene_embedding')
+    torch.save(gene_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_gene_embedding')
 
 
-def disease_embedding(model_name):
+def disease_embedding(model_name, pooling = 'sum'):
     tokenizer, model = load_model(model_name)
     model.eval()
     
@@ -123,12 +135,18 @@ def disease_embedding(model_name):
             input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
             with torch.no_grad():
                 text_emb = model.encoder(input_ids)
-                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                if pooling == 'sum':
+                    text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                elif pooling == 'mean':
+                    text_emb = text_emb.last_hidden_state.mean(1).squeeze(0)
         elif model_name == 'chemdfm':
             input_ids = tokenizer(input_text, return_tensors = 'pt')
             with torch.no_grad():
                 text_emb = model(**input_ids, output_hidden_states = True)
-                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                if pooling == 'sum':
+                    text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                elif pooling == 'mean':
+                    text_emb = text_emb.hidden_states[-1].mean(1).squeeze(0).cpu()
         
         emb_dict = {
             'input text': input_text,
@@ -139,10 +157,10 @@ def disease_embedding(model_name):
     emb_none = sum(x is None for x in dis_emb.values())
     print(f'Number of failed embedding: {emb_none}')
     
-    torch.save(dis_emb, f'processed/description_embedding/{model_name}_disease_embedding')
+    torch.save(dis_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_disease_embedding')
 
 
-def phenotype_embedding(model_name):
+def phenotype_embedding(model_name, pooling = 'sum'):
     tokenizer, model = load_model(model_name)
     model.eval()
     
@@ -159,12 +177,18 @@ def phenotype_embedding(model_name):
             input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
             with torch.no_grad():
                 text_emb = model.encoder(input_ids)
-                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                if pooling == 'sum':
+                    text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                elif pooling == 'mean':
+                    text_emb = text_emb.last_hidden_state.mean(1).squeeze(0)
         elif model_name == 'chemdfm':
             input_ids = tokenizer(input_text, return_tensors = 'pt')
             with torch.no_grad():
                 text_emb = model(**input_ids, output_hidden_states = True)
-                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                if pooling == 'sum':
+                    text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                elif pooling == 'mean':
+                    text_emb = text_emb.hidden_states[-1].mean(1).squeeze(0).cpu()
         
         emb_dict = {
             'input text': input_text,
@@ -175,10 +199,10 @@ def phenotype_embedding(model_name):
     emb_none = sum(x is None for x in pheno_emb.values())
     print(f'Number of failed embedding: {emb_none}')
     
-    torch.save(pheno_emb, f'processed/description_embedding/{model_name}_phenotype_embedding')
+    torch.save(pheno_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_phenotype_embedding')
 
 
-def pathway_embedding(model_name):
+def pathway_embedding(model_name, pooling = 'sum'):
     tokenizer, model = load_model(model_name)
     model.eval()
     
@@ -211,10 +235,10 @@ def pathway_embedding(model_name):
     emb_none = sum(x is None for x in path_emb.values())
     print(f'Number of failed embedding: {emb_none}')
     
-    torch.save(path_emb, f'processed/description_embedding/{model_name}_pathway_embedding')
+    torch.save(path_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_pathway_embedding')
 
 
-def go_embedding(model_name):
+def go_embedding(model_name, pooling = 'sum'):
     tokenizer, model = load_model(model_name)
     model.eval()
     
@@ -231,12 +255,18 @@ def go_embedding(model_name):
             input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
             with torch.no_grad():
                 text_emb = model.encoder(input_ids)
-                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                if pooling == 'sum':
+                    text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                elif pooling == 'mean':
+                    text_emb = text_emb.last_hidden_state.mean(1).squeeze(0)
         elif model_name == 'chemdfm':
             input_ids = tokenizer(input_text, return_tensors = 'pt')
             with torch.no_grad():
                 text_emb = model(**input_ids, output_hidden_states = True)
-                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                if pooling == 'sum':
+                    text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                elif pooling == 'mean':
+                    text_emb = text_emb.hidden_states[-1].mean(1).squeeze(0).cpu()
 
         emb_dict = {
             'input text': input_text,
@@ -247,10 +277,10 @@ def go_embedding(model_name):
     emb_none = sum(x is None for x in go_emb.values())
     print(f'Number of failed embedding: {emb_none}')
     
-    torch.save(go_emb, f'processed/description_embedding/{model_name}_go_embedding')
+    torch.save(go_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_go_embedding')
 
 
-def relation_embedding(model_name):
+def relation_embedding(model_name, pooling = 'sum'):
     tokenizer, model = load_model(model_name)
     model.eval()
     
@@ -265,12 +295,18 @@ def relation_embedding(model_name):
             input_ids = tokenizer(input_text, return_tensors = 'pt').input_ids
             with torch.no_grad():
                 text_emb = model.encoder(input_ids)
-                text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                if pooling == 'sum':
+                    text_emb = text_emb.last_hidden_state.sum(1).squeeze(0)
+                elif pooling == 'mean':
+                    text_emb = text_emb.last_hidden_state.mean(1).squeeze(0)
         elif model_name == 'chemdfm':
             input_ids = tokenizer(input_text, return_tensors = 'pt')
             with torch.no_grad():
                 text_emb = model(**input_ids, output_hidden_states = True)
-                text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                if pooling == 'sum':
+                    text_emb = text_emb.hidden_states[-1].sum(1).squeeze(0).cpu()
+                elif pooling == 'mean':
+                    text_emb = text_emb.hidden_states[-1].mean(1).squeeze(0).cpu()
 
         emb_dict = {
             'input text': input_text,
@@ -281,18 +317,18 @@ def relation_embedding(model_name):
     emb_none = sum(x is None for x in rel_emb.values())
     print(f'Number of failed embedding: {emb_none}')
     
-    torch.save(rel_emb, f'processed/description_embedding/{model_name}_relation_embedding')
+    torch.save(rel_emb, f'processed/description_embedding/{pooling}_pooling/{model_name}_relation_embedding')
     
 
-def cd_embedding_data(model_name):
+def cd_embedding_data(model_name, pooling = 'sum'):
     data = torch.load('processed/cd/cd.pt')
     chem_map = torch.load('processed/cd/chem_map')
     dis_map = torch.load('processed/cd/dis_map')
     rel_map = torch.load('processed/cd/rel_type_map')
     
-    chem_emb = torch.load(f'processed/description_embedding/{model_name}_chemical_embedding')
-    dis_emb = torch.load(f'processed/description_embedding/{model_name}_disease_embedding') 
-    rel_emb = torch.load(f'processed/description_embedding/{model_name}_relation_embedding')
+    chem_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_chemical_embedding')
+    dis_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_disease_embedding') 
+    rel_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_relation_embedding')
     
     #
     entity_dict = dict()
@@ -316,17 +352,17 @@ def cd_embedding_data(model_name):
     torch.save(relation_embedding, f'processed/cd/{model_name}_relation_embedding')
     
     
-def cgd_embedding_data(model_name):
+def cgd_embedding_data(model_name, pooling = 'sum'):
     data = torch.load('processed/cgd/cgd.pt')
     chem_map = torch.load('processed/cgd/chem_map')
     gene_map = torch.load('processed/cgd/gene_map')
     dis_map = torch.load('processed/cgd/dis_map')
     rel_map = torch.load('processed/cgd/rel_type_map')
     
-    chem_emb = torch.load(f'processed/description_embedding/{model_name}_chemical_embedding')
-    gene_emb = torch.load(f'processed/description_embedding/{model_name}_gene_embedding')
-    dis_emb = torch.load(f'processed/description_embedding/{model_name}_disease_embedding') 
-    rel_emb = torch.load(f'processed/description_embedding/{model_name}_relation_embedding')
+    chem_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_chemical_embedding')
+    gene_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_gene_embedding')
+    dis_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_disease_embedding') 
+    rel_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_relation_embedding')
     
     #
     entity_dict = dict()
@@ -353,7 +389,7 @@ def cgd_embedding_data(model_name):
     torch.save(relation_embedding, f'processed/cgd/{model_name}_relation_embedding')
     
     
-def cgpd_embedding_data(model_name):
+def cgpd_embedding_data(model_name, pooling = 'sum'):
     data = torch.load('processed/cgpd/cgpd.pt')
     chem_map = torch.load('processed/cgpd/chem_map')
     gene_map = torch.load('processed/cgpd/gene_map')
@@ -361,11 +397,11 @@ def cgpd_embedding_data(model_name):
     dis_map = torch.load('processed/cgpd/dis_map')
     rel_map = torch.load('processed/cgpd/rel_type_map')
     
-    chem_emb = torch.load(f'processed/description_embedding/{model_name}_chemical_embedding')
-    gene_emb = torch.load(f'processed/description_embedding/{model_name}_gene_embedding')
-    pheno_emb = torch.load(f'processed/description_embedding/{model_name}_phenotype_embedding')
-    dis_emb = torch.load(f'processed/description_embedding/{model_name}_disease_embedding') 
-    rel_emb = torch.load(f'processed/description_embedding/{model_name}_relation_embedding')
+    chem_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_chemical_embedding')
+    gene_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_gene_embedding')
+    pheno_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_phenotype_embedding')
+    dis_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_disease_embedding') 
+    rel_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_relation_embedding')
     
     #
     entity_dict = dict()
@@ -396,7 +432,7 @@ def cgpd_embedding_data(model_name):
     
     
     
-def ctd_embedding_data(model_name):
+def ctd_embedding_data(model_name, pooling = 'sum'):
     data = torch.load('processed/ctd/ctd.pt')
     chem_map = torch.load('processed/ctd/chem_map')
     gene_map = torch.load('processed/ctd/gene_map')
@@ -406,13 +442,13 @@ def ctd_embedding_data(model_name):
     go_map = torch.load('processed/ctd/go_map')
     rel_map = torch.load('processed/ctd/rel_type_map')
     
-    chem_emb = torch.load(f'processed/description_embedding/{model_name}_chemical_embedding')
-    gene_emb = torch.load(f'processed/description_embedding/{model_name}_gene_embedding')
-    pheno_emb = torch.load(f'processed/description_embedding/{model_name}_phenotype_embedding')
-    dis_emb = torch.load(f'processed/description_embedding/{model_name}_disease_embedding') 
-    path_emb = torch.load(f'processed/description_embedding/{model_name}_pathway_embedding') 
-    go_emb = torch.load(f'processed/description_embedding/{model_name}_go_embedding') 
-    rel_emb = torch.load(f'processed/description_embedding/{model_name}_relation_embedding')
+    chem_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_chemical_embedding')
+    gene_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_gene_embedding')
+    pheno_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_phenotype_embedding')
+    dis_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_disease_embedding') 
+    path_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_pathway_embedding') 
+    go_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_go_embedding') 
+    rel_emb = torch.load(f'processed/description_embedding/{pooling}_pooling/{model_name}_relation_embedding')
     
     #
     entity_dict = dict()
@@ -447,15 +483,20 @@ def ctd_embedding_data(model_name):
     torch.save(entity_embedding, f'processed/ctd/{model_name}_entity_embedding')
     torch.save(relation_embedding, f'processed/ctd/{model_name}_relation_embedding')
 
-    
+
 if __name__ == '__main__':
-    # chemical_embedding('biot5+')
-    # gene_embedding('biot5+')
-    # disease_embedding('biot5+')
-    # phenotype_embedding('biot5+')
-    # pathway_embedding('biot5+')
-    # go_embedding('biot5+')
-    # relation_embedding('biot5+')
+    relation_embedding(model_name = 'biot5+', pooling = 'mean')
+    disease_embedding(model_name = 'biot5+', pooling = 'mean')
+    chemical_embedding(model_name = 'biot5+', pooling = 'mean')
+    phenotype_embedding(model_name = 'biot5+', pooling = 'mean')
+    pathway_embedding(model_name = 'biot5+', pooling = 'mean')
+    go_embedding(model_name = 'biot5+', pooling = 'mean')
+    gene_embedding(model_name = 'biot5+', pooling = 'mean')
+    
+    cd_embedding_data(model_name = 'biot5+', pooling = 'mean')
+    cgd_embedding_data(model_name = 'biot5+', pooling = 'mean')
+    cgpd_embedding_data(model_name = 'biot5+', pooling = 'mean')
+    ctd_embedding_data(model_name = 'biot5+', pooling = 'mean')
     
     relation_embedding('chemdfm')
     disease_embedding('chemdfm')
@@ -464,8 +505,8 @@ if __name__ == '__main__':
     pathway_embedding('chemdfm')
     go_embedding('chemdfm')
     gene_embedding('chemdfm')
-    
-    # cd_embedding_data('biot5+')
-    # cgd_embedding_data('biot5+')
-    # cgpd_embedding_data('biot5+')
-    # ctd_embedding_data('biot5+')
+
+    cd_embedding_data('chemdfm')
+    cgd_embedding_data('chemdfm')
+    cgpd_embedding_data('chemdfm')
+    ctd_embedding_data('chemdfm')
