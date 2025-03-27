@@ -490,14 +490,14 @@ def main():
                     'scheduler_dict': scheduler_dict}
     
     if args.embedding_type != 'vanilla':
-        file_name = f'{args.embedding_type}_seed{args.seed}.pt'
+        file_name = f'{args.llm_model}_seed{args.seed}.pt'
     else:
         file_name = f'seed{args.seed}.pt'
     # file_name = f'embdim{args.hidden_dim}_gamma{args.gamma}_lr{args.learning_rate}_advtemp{args.adversarial_temperature}_seed{args.seed}.pt'
     torch.save(check_points, os.path.join(save_path, file_name))
 
     if args.embedding_type != 'vanilla':
-        log_save_path = f'best_val_log/{args.dataset}_{args.embedding_type}'
+        log_save_path = f'best_val_log/{args.dataset}_{args.llm_model}'
     else:
         log_save_path = f'best_val_log/{args.dataset}'
         
