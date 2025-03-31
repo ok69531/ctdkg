@@ -30,7 +30,7 @@ logging.basicConfig(format='', level=logging.INFO)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'cuda is available: {torch.cuda.is_available()}')
 
-wandb.login(key = open('module/wandb_key.txt', 'r').readline())
+wandb.login(key = open('../module/wandb_key.txt', 'r').readline())
 wandb.init(project = f'cd-inductive', entity = 'soyoung')
 if args.embedding_type != 'vanilla':
     wandb.run.name = f'{args.dataset}-{args.model}{args.seed}-{args.embedding_type}'
