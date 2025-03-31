@@ -4,6 +4,9 @@
 # ConvKB: https://github.com/daiquocnguyen/ConvKB
 # CompGCN: https://github.com/malllabiisc/CompGCN
 
+import sys
+sys.path.append('../')
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
