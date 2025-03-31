@@ -122,17 +122,17 @@ class KGEModel(nn.Module):
         self.test_desc_embedding = torch.load('dataset/cd/processed/test_biot5+_chemical_embedding')
         self.test_molecule_embedding = torch.load('dataset/cd/processed/test_molecule_embedding')
         
-        self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32)
-        self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32)
-        self.molecule_embedding = self.molecule_embedding.to(torch.float32)
-        self.test_desc_embedding = self.test_desc_embedding.to(torch.float32)
-        self.test_molecule_embedding = self.test_molecule_embedding.to(torch.float32)
+        # self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32)
+        # self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32)
+        # self.molecule_embedding = self.molecule_embedding.to(torch.float32)
+        # self.test_desc_embedding = self.test_desc_embedding.to(torch.float32)
+        # self.test_molecule_embedding = self.test_molecule_embedding.to(torch.float32)
         
-        # self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32).cuda()
-        # self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32).cuda()
-        # self.molecule_embedding  = self.molecule_embedding.to(torch.float32).cuda()
-        # self.test_desc_embedding = self.test_desc_embedding.to(torch.float32).cuda()
-        # self.test_molecule_embedding = self.test_molecule_embedding.to(torch.float32).cuda()
+        self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32).cuda()
+        self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32).cuda()
+        self.molecule_embedding  = self.molecule_embedding.to(torch.float32).cuda()
+        self.test_desc_embedding = self.test_desc_embedding.to(torch.float32).cuda()
+        self.test_molecule_embedding = self.test_molecule_embedding.to(torch.float32).cuda()
     
     def forward(self, sample, mode='single', train_type = 'train'):
         '''
