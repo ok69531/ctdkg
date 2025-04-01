@@ -941,6 +941,8 @@ def create_working_directory(cfg):
 import os
 import math
 
+from tqdm import tqdm
+
 import torch
 from torch import optim
 from torch import nn
@@ -984,7 +986,7 @@ def train_and_validate(model, train_data, valid_data, filtered_data=None):
 
             losses = []
             sampler.set_epoch(epoch)
-            for batch in train_loader:
+            for batch in tqdm(train_loader):
                 batch = negative_sampling(train_data, batch, num_negative, strict=True)
                 pred = parallel_model(train_data, batch)
                 target = torch.zeros_like(pred)
@@ -1127,9 +1129,9 @@ is_inductive = False
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
-train_batch_size = 1024
+train_batch_size = 128
 num_epoch = 20
-num_negative = 128
+num_negative = 4
 adversarial_temperature = 0.5
 log_interval = 100
 metrics = ['mr', 'mrr', 'hits@1', 'hits@3', 'hits@10']
