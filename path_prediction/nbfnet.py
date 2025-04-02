@@ -9,7 +9,8 @@ from torch.utils import data as torch_data
 from torch_geometric.data import Data
 
 
-dataset = torch.load('dataset/huntington/ctd.pt')
+dataset = torch.load('dataset/cgpd/cgpd.pt')
+# dataset = torch.load('dataset/huntington/ctd.pt')
 num_relations = int(dataset.num_relations) * 2
 num_nodes = sum(dataset.num_nodes_dict.values())
 
