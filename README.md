@@ -1,7 +1,7 @@
 # CTDKG
 Source code for 'CTDKG: Towards Uncovering Chemical–Gene–Disease Pathways via Knowledge Graphs' with pytorch and torch_geometric.
 
-![Image](https://github.com/user-attachments/assets/ea72f2d9-c7ae-4d64-800c-4b1682667260)
+<img width="1127" alt="Image" src="https://github.com/user-attachments/assets/31c05e79-56b3-4626-863f-e93cffb3f4ab" />
 
 ## Requirements & Installation
 The code is written in Python 3.10.0 and required packages as follow:
