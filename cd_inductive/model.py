@@ -122,6 +122,12 @@ class KGEModel(nn.Module):
         self.test_desc_embedding = torch.load('dataset/cd/processed/test_biot5+_chemical_embedding')
         self.test_molecule_embedding = torch.load('dataset/cd/processed/test_molecule_embedding')
         
+        # self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32).to('mps')
+        # self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32).to('mps')
+        # self.molecule_embedding = self.molecule_embedding.to(torch.float32).to('mps')
+        # self.test_desc_embedding = self.test_desc_embedding.to(torch.float32).to('mps')
+        # self.test_molecule_embedding = self.test_molecule_embedding.to(torch.float32).to('mps')
+        
         # self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32)
         # self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32)
         # self.molecule_embedding = self.molecule_embedding.to(torch.float32)
@@ -144,16 +150,16 @@ class KGEModel(nn.Module):
         Because negative samples and positive samples usually share two elements 
         in their triple ((head, relation) or (relation, tail)).
         '''
-        if train_type != 'test':
-            if self.embedding_type == 'text':
-                self.entity_embedding = self.entity_mlp(self.entity_desc_embedding)
-                self.relation_embedding = self.relation_mlp(self.rel_desc_embedding)
-            elif self.embedding_type == 'concat':
-                self.text_entity_embedding = self.entity_mlp(self.entity_desc_embedding)
-                self.text_relation_embedding = self.relation_mlp(self.rel_desc_embedding)
-                mol_entity_embedding = self.mol_mlp(self.molecule_embedding)
-                self.entity_embedding = torch.cat([mol_entity_embedding, self.entity_id_embedding], dim = 0)
-        else:
+        if self.embedding_type == 'text':
+            self.entity_embedding = self.entity_mlp(self.entity_desc_embedding)
+            self.relation_embedding = self.relation_mlp(self.rel_desc_embedding)
+        elif self.embedding_type == 'concat':
+            self.text_entity_embedding = self.entity_mlp(self.entity_desc_embedding)
+            self.text_relation_embedding = self.relation_mlp(self.rel_desc_embedding)
+            mol_entity_embedding = self.mol_mlp(self.molecule_embedding)
+            self.entity_embedding = torch.cat([mol_entity_embedding, self.entity_id_embedding], dim = 0)
+        
+        if train_type == 'test':
             self.text_entity_embedding = self.entity_mlp(self.entity_desc_embedding)
             test_entity_embedding = self.entity_mlp(self.test_desc_embedding)
             self.text_entity_embedding[:len(test_entity_embedding)] = test_entity_embedding

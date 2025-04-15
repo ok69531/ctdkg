@@ -1,5 +1,5 @@
 # CTDKG
-Source code for 'A New Large-Scale Benchmark Knowledge Graph Leveraging the Comparative Toxicogenomics Database' with pytorch and torch_geometric.
+Source code for 'CTDKG: Towards Uncovering Chemical–Gene–Disease Pathways via Knowledge Graphs' with pytorch and torch_geometric.
 
 
 ## Requirements & Installation
@@ -66,33 +66,35 @@ If you run the code on the local environment, then set the num_workers argument 
 ### Training & Evaluation
 We support eight models and seven datasets. 
 
-Datasets: ```cd, cg-v1, cg-v2, gd, cgd, cgpd, ctd```
+Datasets: ```cd, cgd, cgpd, ctd```
 ```python
 # for translation models
 python main.py --dataset=cd --model=TransE
-python main.py --dataset=cd --model=RotatE -double_entity_embedding
-python main.py --dataset=cd --model=HAKE --double_entity_embedding --num_relation_embedding=3
-python main.py --dataset=cd --model=GIE
-python main.py --dataset=cd --model=HOUSE
+python main.py --dataset=cd --model=RotatE -num_entity_embedding=2
+python main.py --dataset=cd --model=HAKE --num_entity_embedding=2 --num_relation_embedding=3
 python main.py --dataset=cd --model=TripleRE --num_relation_embedding=3
+python main.py --dataset-cd --model=Rotate4D --num_entity_embedding=4 --num_relation_embedding=4
+# python main.py --dataset=cd --model=GIE
+# python main.py --dataset=cd --model=HOUSE
 
 # for semantic information models
 python main.py --dataset=cd --model=DistMult
-python main.py --dataset=cd --model=ComplEx --double_entity_embedding --num_relation_embedding=2
+python main.py --dataset=cd --model=ComplEx --num_entity_embedding=2 --num_relation_embedding=2
+python main.py --dataset=cd --model=QuatRE --num_entity_embedding=4 --num_relation_embedding=4
 
 # for neural network models
-python main_conv.py --dataset=cd --model=conve --learning_rate=0.001 --negative_sample_size=1
-python main_conv.py --dataset=cd --model=convkb --learning_rate=0.005 --negative_sample_size=1
-python main_gnn.py --dataset=cd --model=rgcn --learning_rate=0.001 --negative_sample_size=1
+# python main_conv.py --dataset=cd --model=conve --learning_rate=0.001 --negative_sample_size=1
+# python main_conv.py --dataset=cd --model=convkb --learning_rate=0.005 --negative_sample_size=1
+# python main_gnn.py --dataset=cd --model=rgcn --learning_rate=0.001 --negative_sample_size=1
 ```
 
 
-## Components
+<!-- ## Components
 ```
 ├── build_dataset
 │   ├── data_download.py
 │   ├── generate_negative.py
-│   ├── preprocess.py
+│   ├── construct_triplet.py
 │   ├── scrap_gene_phenotype.py
 ├── module
 │   ├── argument.py
@@ -102,12 +104,14 @@ python main_gnn.py --dataset=cd --model=rgcn --learning_rate=0.001 --negative_sa
 │   └── set_seed.py
 ├── main.py
 ├── main_gnn.py
-├── main_conv.txt
+├── main_conv.py
+├── path_prediction
+├── cd_inductive
 └── .gitignore
 ```
 - build_dataset/data_download.py: downloading CTD data
 - build_dataset/generate_negative.py: generating negative samples for validation/test data
-- build_dataset/preprocess.py: building benchmark graphs
+- build_dataset/construct_triplet.py: building benchmark graphs
 - build_dataset/scrap_gene_phenotype.py: crawling gene-phenotype data from CTD
 
 - module/argument.py: set of arguments
@@ -118,7 +122,7 @@ python main_gnn.py --dataset=cd --model=rgcn --learning_rate=0.001 --negative_sa
 
 - main.py: script for training using translation and semantic models
 - main_conv.py: script for training using convolution-based models
-- main_gnn.py: script for training using GNN-based models
+- main_gnn.py: script for training using GNN-based models -->
 
 <!-- 
 ## Tutorial

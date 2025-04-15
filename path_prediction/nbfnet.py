@@ -1211,28 +1211,36 @@ import pprint
 import torch
 from torch_geometric.data import Data
 
-model.load_state_dict(torch.load('model_epoch_20.pth')['model'])
+model.load_state_dict(torch.load('model_epoch_16.pth')['model'])
+# model.load_state_dict(torch.load('model_epoch_20.pth')['model'])
 model.eval()
 
 entity_dict
 # vocab_file = torch.load('../dataset/cgd_entity.pt')
-chem_map = torch.load('dataset/huntington/chem_map')
-gene_map = torch.load('dataset/huntington/gene_map')
+chem_map = torch.load('dataset/cgpd/chem_map')
+gene_map = torch.load('dataset/cgpd/gene_map')
 gene_map = {str(k): v for k, v in gene_map.items()}
-pheno_map = torch.load('dataset/huntington/pheno_map')
-dis_map = torch.load('dataset/huntington/dis_map')
-path_map = torch.load('dataset/huntington/path_map')
-go_map = torch.load('dataset/huntington/go_map')
-entity_maps = [chem_map, gene_map, pheno_map, dis_map, path_map, go_map]
+pheno_map = torch.load('dataset/cgpd/pheno_map')
+dis_map = torch.load('dataset/cgpd/dis_map')
+# chem_map = torch.load('dataset/huntington/chem_map')
+# gene_map = torch.load('dataset/huntington/gene_map')
+# gene_map = {str(k): v for k, v in gene_map.items()}
+# pheno_map = torch.load('dataset/huntington/pheno_map')
+# dis_map = torch.load('dataset/huntington/dis_map')
+# path_map = torch.load('dataset/huntington/path_map')
+# go_map = torch.load('dataset/huntington/go_map')
+entity_maps = [chem_map, gene_map, pheno_map, dis_map]
+# entity_maps = [chem_map, gene_map, pheno_map, dis_map, path_map, go_map]
 
 entity_vocab = [list(x.keys()) for x in entity_maps]
 entity_vocab = list(itertools.chain(*entity_vocab))
 # vocab_file = chem_map | gene_map | pheno_map | dis_map | path_map | go_map
 # entity_vocab = list(vocab_file.keys())
 
-rel_file = torch.load('dataset/huntington/rel_type_map')
+rel_file = torch.load('dataset/cgpd/rel_type_map')
+# rel_file = torch.load('dataset/huntington/rel_type_map')
 relation_vocab = list(rel_file.keys())
-
+{r: v.unique() for (h, r, t),v in dataset.edge_reltype.items()}
 # relation_vocab = [list(rel_file.keys())[i] for i in dataset.edge_type]
 
 
@@ -1333,9 +1341,7 @@ if __name__ == "__main__":
 
     test_triplets = torch.cat([test_data.target_edge_index, test_data.target_edge_type.unsqueeze(0)]).t()
     for i in range(len(test_triplets)):
-        if test_triplets[i][2] == 48:
+        if test_triplets[i][2] == 46:
+        # if test_triplets[i][2] == 48:
             visualize_path(model, test_data, test_triplets[i], entity_vocab, relation_vocab, filtered_data=filtered_data)
         else: pass
-
-
-# %%
