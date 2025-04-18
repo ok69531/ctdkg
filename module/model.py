@@ -1,5 +1,8 @@
 # https://github.com/snap-stanford/ogb/tree/master
-# RoataE: https://github.com/DeepGraphLearning/KnowledgeGraphEmbedding
+# TransE, DistMult, ComplEx, RoataE: https://github.com/DeepGraphLearning/KnowledgeGraphEmbedding
+# HAKE: https://github.com/MIRALab-USTC/KGE-HAKE
+# Rotate4D: https://github.com/lnthanhhcmus/Rotate4D
+# QuatRE: https://github.com/daiquocnguyen/QuatRE
 # ConvE: https://github.com/TimDettmers/ConvE
 # ConvKB: https://github.com/daiquocnguyen/ConvKB
 # CompGCN: https://github.com/malllabiisc/CompGCN
