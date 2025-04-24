@@ -25,3 +25,6 @@ tuning.py
 desc_pre_tmp.py
 figures
 *graphmvp_embedding
+saved_model_per_iter
+cd_sensitivity
+*.pth
