@@ -130,11 +130,11 @@ class KGEModel(nn.Module):
             self.entity_desc_embedding = torch.load(f'dataset/ctd/processed/{self.llm_model}_entity_embedding')
             self.rel_desc_embedding = torch.load(f'dataset/ctd/processed/{self.llm_model}_relation_embedding')
         
-        self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32)
-        self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32)
+        # self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32)
+        # self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32)
     
-        # self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32).cuda()
-        # self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32).cuda()
+        self.entity_desc_embedding  = self.entity_desc_embedding.to(torch.float32).cuda()
+        self.rel_desc_embedding  = self.rel_desc_embedding.to(torch.float32).cuda()
     
     def forward(self, sample, mode='single'):
         '''
