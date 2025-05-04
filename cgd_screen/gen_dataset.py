@@ -133,7 +133,8 @@ def negative_sampling(data, inferred_gene_dis):
     #     print(neg_for_h.shape)
     #     head_negative.append(neg_for_h)
     
-    data['tail_neg'] = {k: torch.nested.nested_tensor(tail_negative) for k in data.edge_index_dict}
+    data['tail_neg'] = {k: tail_negative for k in data.edge_index_dict}
+    # data['tail_neg'] = {k: torch.nested.nested_tensor(tail_negative) for k in data.edge_index_dict}
     
     return data
 

@@ -103,9 +103,9 @@ def make_triplet(data, is_train = False):
     relation = []
     head = []
     tail = []
-    if not is_train:
-        # head_neg = []
-        tail_neg = []
+    # if not is_train:
+    #     # head_neg = []
+    #     tail_neg = []
 
     for (h, r, t), e in data.edge_index_dict.items():
         head_type.append(list(itertools.repeat(h, e.shape[1])))
@@ -113,9 +113,9 @@ def make_triplet(data, is_train = False):
         relation.append(data.edge_reltype[(h, r, t)].view(-1))
         head.append(e[0])
         tail.append(e[1])
-        if not is_train:
-            # head_neg.append(data.head_neg[(h, r, t)])
-            tail_neg.append(data.tail_neg[(h, r, t)])
+        # if not is_train:
+        #     # head_neg.append(data.head_neg[(h, r, t)])
+        #     tail_neg.append(data.tail_neg[(h, r, t)])
 
     try:
         triples = {
@@ -125,7 +125,8 @@ def make_triplet(data, is_train = False):
             'relation': torch.cat(relation),
             'tail_type': list(itertools.chain(*tail_type)),
             'tail': torch.cat(tail),
-            'tail_neg': torch.cat(tail_neg)
+            'tail_neg': data.tail_neg[(h, r, t)],
+            # 'tail_neg': torch.cat(tail_neg)
         }
     except:
         triples = {
