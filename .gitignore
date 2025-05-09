@@ -28,3 +28,4 @@ figures
 saved_model_per_iter
 cd_sensitivity
 *.pth
+tmp
